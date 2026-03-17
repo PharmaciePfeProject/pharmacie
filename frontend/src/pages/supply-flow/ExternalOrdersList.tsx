@@ -83,7 +83,7 @@ export default function ExternalOrdersList() {
       <div className="rounded-xl border bg-white p-5 shadow-sm">
         <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
           <div className="space-y-2"><p className="text-sm font-medium">Product ID</p><Input value={productId} onChange={(e) => setProductId(e.target.value)} /></div>
-          <div className="space-y-2"><p className="text-sm font-medium">Emplacement ID</p><Input value={emplacementId} onChange={(e) => setEmplacementId(e.target.value)} /></div>
+          <div className="space-y-2"><p className="text-sm font-medium">Location ID</p><Input value={emplacementId} onChange={(e) => setEmplacementId(e.target.value)} /></div>
           <div className="space-y-2"><p className="text-sm font-medium">State ID</p><Input value={stateId} onChange={(e) => setStateId(e.target.value)} /></div>
           <div className="space-y-2"><p className="text-sm font-medium">Date from</p><Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-full" /></div>
           <div className="space-y-2"><p className="text-sm font-medium">Date to</p><Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-full" /></div>
@@ -106,7 +106,7 @@ export default function ExternalOrdersList() {
                   <th className="px-4 py-3 text-sm font-semibold">ID</th>
                   <th className="px-4 py-3 text-sm font-semibold">Number</th>
                   <th className="px-4 py-3 text-sm font-semibold">Date</th>
-                  <th className="px-4 py-3 text-sm font-semibold">Emplacement</th>
+                  <th className="px-4 py-3 text-sm font-semibold">Location</th>
                   <th className="px-4 py-3 text-sm font-semibold">State</th>
                   <th className="px-4 py-3 text-sm font-semibold">Lines</th>
                   <th className="px-4 py-3 text-sm font-semibold">Actions</th>

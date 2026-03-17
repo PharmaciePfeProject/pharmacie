@@ -100,7 +100,7 @@ export default function DistributionDetails() {
               <p className="mt-2 font-semibold">{item.day_id ?? "-"}</p>
             </div>
             <div className="rounded-3xl border border-border bg-white p-5 shadow-sm">
-              <p className="text-sm text-muted-foreground">Emplacement</p>
+              <p className="text-sm text-muted-foreground">Location</p>
               <p className="mt-2 font-semibold">
                 {item.emplacement_id ?? "-"} / {item.emplacement_label || "-"}
               </p>

@@ -1,4 +1,6 @@
 import { ShieldCheck, UserCog, Users } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function Admin() {
@@ -9,18 +11,24 @@ export default function Admin() {
           "Users",
           "Create users, enable or disable access, and monitor account status.",
           Users,
+          "/app/admin/users",
+          "Open users management",
         ],
         [
           "Roles",
           "Assign admin, pharmacist, or operational roles without exposing role choice on public register.",
           UserCog,
+          "/app/admin/users",
+          "Manage role assignments",
         ],
         [
           "Security",
           "Track access rules and protect sensitive modules like administration and reporting.",
           ShieldCheck,
+          "/app/admin/security",
+          "Review security",
         ],
-      ].map(([title, description, Icon]) => {
+      ].map(([title, description, Icon, to, actionLabel]) => {
         const LucideIcon = Icon as typeof Users;
 
         return (
@@ -33,9 +41,13 @@ export default function Admin() {
               <CardDescription>{description as string}</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="rounded-3xl border border-dashed border-border bg-muted/30 p-4 text-sm leading-6 text-muted-foreground">
-                This is the starting admin workspace. Next, we can turn this into
-                a real Users table with search, role assignment, and status badges.
+              <div className="space-y-4">
+                <div className="rounded-3xl border border-dashed border-border bg-muted/30 p-4 text-sm leading-6 text-muted-foreground">
+                  Use the administration workspace to review access rules and keep role assignment inside the platform.
+                </div>
+                <Button asChild variant="outline" className="w-full rounded-xl">
+                  <Link to={to as string}>{actionLabel as string}</Link>
+                </Button>
               </div>
             </CardContent>
           </Card>

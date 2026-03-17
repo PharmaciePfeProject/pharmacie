@@ -1,13 +1,12 @@
-export function requireRole(allowedRoleIds = []) {
+export function requireRole(allowedRoles = []) {
   return (req, res, next) => {
-    // requireAuth must run before this, so req.user exists
     const roles = req.user?.roles || [];
 
-    const ok = roles.some((r) => allowedRoleIds.includes(r));
+    const ok = roles.some((roleKey) => allowedRoles.includes(roleKey));
     if (!ok) {
       return res.status(403).json({
         message: "Forbidden: insufficient role",
-        required: allowedRoleIds,
+        required: allowedRoles,
         has: roles,
       });
     }

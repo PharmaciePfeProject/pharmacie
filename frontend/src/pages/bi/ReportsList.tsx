@@ -49,8 +49,36 @@ const reports: ReportItem[] = [
 ];
 
 export default function ReportsList() {
+  const availableReports = reports.filter((report) => Boolean(report.url)).length;
+
   return (
     <div className="space-y-6">
+      <Card className="border-white/70 bg-white/95 shadow-sm">
+        <CardHeader className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+          <div>
+            <CardTitle className="text-3xl">BI report catalog</CardTitle>
+            <p className="mt-3 max-w-2xl text-sm leading-7 text-muted-foreground">
+              This catalog groups the Power BI dashboards linked to pharmacy operations. Use it as the demo-ready entry point
+              for stock, movement, distribution, inventory, and consumption analytics.
+            </p>
+          </div>
+          <div className="grid gap-3 rounded-3xl bg-muted/30 p-5">
+            <div className="rounded-2xl border bg-white px-4 py-3 shadow-sm">
+              <p className="text-sm font-medium">Configured dashboards</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {availableReports} of {reports.length} report link{reports.length === 1 ? "" : "s"} currently available.
+              </p>
+            </div>
+            <div className="rounded-2xl border bg-white px-4 py-3 shadow-sm">
+              <p className="text-sm font-medium">Configuration source</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Public Power BI URLs from Vite environment variables only.
+              </p>
+            </div>
+          </div>
+        </CardHeader>
+      </Card>
+
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {reports.map((report) => {
           const Icon = report.icon;

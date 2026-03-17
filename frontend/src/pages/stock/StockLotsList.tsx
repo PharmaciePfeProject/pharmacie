@@ -83,7 +83,7 @@ export default function StockLotsList() {
             <Input value={productId} onChange={(e) => setProductId(e.target.value)} placeholder="e.g. 92114" />
           </div>
           <div className="col-span-2 space-y-2 md:col-span-1">
-            <p className="text-sm font-medium">Emplacement ID</p>
+            <p className="text-sm font-medium">Location ID</p>
             <Input value={emplacementId} onChange={(e) => setEmplacementId(e.target.value)} placeholder="e.g. 1" />
           </div>
           <div className="col-span-2 space-y-2 md:col-span-1">
@@ -126,7 +126,7 @@ export default function StockLotsList() {
                   <th className="px-4 py-3 text-sm font-semibold">State</th>
                   <th className="px-4 py-3 text-sm font-semibold">Date refusal</th>
                   <th className="px-4 py-3 text-sm font-semibold">Quantity</th>
-                  <th className="px-4 py-3 text-sm font-semibold">Emplacement</th>
+                  <th className="px-4 py-3 text-sm font-semibold">Location</th>
                 </tr>
               </thead>
               <tbody>

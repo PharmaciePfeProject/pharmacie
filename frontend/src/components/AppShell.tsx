@@ -21,13 +21,13 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/auth/AuthContext";
 import { Button } from "@/components/ui/button";
+import { PERMISSIONS, hasPermission, type PermissionKey } from "@/lib/roles";
 import { cn } from "@/lib/utils";
-import { ROLES } from "@/lib/roles";
 type NavItem = {
   label: string;
   to: string;
   icon: React.ComponentType<{ className?: string }>;
-  roles?: number[];
+  permissions?: PermissionKey[];
 };
 
 const navSections: { title: string; items: NavItem[] }[] = [
@@ -38,40 +38,41 @@ const navSections: { title: string; items: NavItem[] }[] = [
   {
     title: "Operations",
     items: [
-      { label: "Products", to: "/app/products", icon: Package },
-      { label: "Stock", to: "/app/stock", icon: Archive },
-      { label: "Stock lots", to: "/app/stock-lots", icon: Archive },
-      { label: "Movements", to: "/app/stock-movements", icon: ArrowLeftRight },
+      { label: "Products", to: "/app/products", icon: Package, permissions: [PERMISSIONS.PRODUCTS_READ] },
+      { label: "Stock", to: "/app/stock", icon: Archive, permissions: [PERMISSIONS.STOCK_READ] },
+      { label: "Stock lots", to: "/app/stock-lots", icon: Archive, permissions: [PERMISSIONS.STOCKLOTS_READ] },
+      { label: "Movements", to: "/app/stock-movements", icon: ArrowLeftRight, permissions: [PERMISSIONS.MOVEMENTS_READ] },
     ],
   },
   {
     title: "Distribution",
     items: [
-      { label: "Distributions", to: "/app/distributions", icon: Stethoscope },
-      { label: "Internal deliveries", to: "/app/internal-deliveries", icon: Truck },
+      { label: "Distributions", to: "/app/distributions", icon: Stethoscope, permissions: [PERMISSIONS.DISTRIBUTIONS_READ] },
+      { label: "Internal deliveries", to: "/app/internal-deliveries", icon: Truck, permissions: [PERMISSIONS.SUPPLY_READ] },
     ],
   },
   {
     title: "Supply",
     items: [
-      { label: "External orders", to: "/app/external-orders", icon: ShoppingCart },
-      { label: "Internal orders", to: "/app/internal-orders", icon: ClipboardList },
-      { label: "Receptions", to: "/app/receptions", icon: Boxes },
+      { label: "External orders", to: "/app/external-orders", icon: ShoppingCart, permissions: [PERMISSIONS.SUPPLY_READ] },
+      { label: "Internal orders", to: "/app/internal-orders", icon: ClipboardList, permissions: [PERMISSIONS.SUPPLY_READ] },
+      { label: "Receptions", to: "/app/receptions", icon: Boxes, permissions: [PERMISSIONS.SUPPLY_READ] },
     ],
   },
   {
     title: "Control",
-    items: [{ label: "Inventories", to: "/app/inventories", icon: ClipboardCheck }],
+    items: [{ label: "Inventories", to: "/app/inventories", icon: ClipboardCheck, permissions: [PERMISSIONS.INVENTORIES_READ] }],
   },
   {
     title: "Analytics",
-    items: [{ label: "BI / Reports", to: "/app/bi", icon: ChartColumnBig }],
+    items: [{ label: "BI & Analytics", to: "/app/bi", icon: ChartColumnBig, permissions: [PERMISSIONS.ANALYTICS_READ] }],
   },
   {
     title: "Administration",
     items: [
-      { label: "Users", to: "/app/admin", icon: Users, roles: [ROLES.ADMIN] },
-      { label: "Security", to: "/app/admin/security", icon: Shield, roles: [ROLES.ADMIN] },
+      { label: "Admin home", to: "/app/admin", icon: Users, permissions: [PERMISSIONS.USERS_MANAGE, PERMISSIONS.ADMIN_ACCESS] },
+      { label: "Users management", to: "/app/admin/users", icon: Users, permissions: [PERMISSIONS.USERS_MANAGE, PERMISSIONS.ADMIN_ACCESS] },
+      { label: "Security", to: "/app/admin/security", icon: Shield, permissions: [PERMISSIONS.USERS_MANAGE, PERMISSIONS.ADMIN_ACCESS] },
     ],
   },
 ];
@@ -89,17 +90,21 @@ const pageMeta: Record<string, { title: string; subtitle?: string }> = {
     title: "Security",
     subtitle: "Review permissions and platform security settings.",
   },
+  "/app/admin/users": {
+    title: "Users Management",
+    subtitle: "View platform users and update role assignments with RBAC protections.",
+  },
   "/app/products": {
     title: "Products",
     subtitle: "Manage medicines, stock items, and product references.",
   },
   "/app/stock": {
     title: "Stock",
-    subtitle: "Read stock quantities by product and emplacement.",
+    subtitle: "Read stock quantities by product and location.",
   },
   "/app/stock-lots": {
     title: "Stock Lots",
-    subtitle: "Read lot-level stock quantities by emplacement.",
+    subtitle: "Read lot-level stock quantities by location.",
   },
   "/app/stock-movements": {
     title: "Stock Movements",
@@ -107,7 +112,7 @@ const pageMeta: Record<string, { title: string; subtitle?: string }> = {
   },
   "/app/distributions": {
     title: "Distributions",
-    subtitle: "Browse distribution headers and quantitative line details from Oracle.",
+    subtitle: "Browse distribution history and quantitative line details from Oracle.",
   },
   "/app/inventories": {
     title: "Inventories",
@@ -130,12 +135,12 @@ const pageMeta: Record<string, { title: string; subtitle?: string }> = {
     subtitle: "Browse internal delivery headers and line quantities.",
   },
   "/app/bi": {
-    title: "Analytics / BI",
-    subtitle: "Access Power BI dashboards and embedded operational analytics.",
+    title: "BI & Analytics",
+    subtitle: "Access Power BI dashboards and embedded analytics for pharmacy operations.",
   },
   "/app/bi/reports": {
     title: "BI Reports",
-    subtitle: "Browse the available Power BI dashboards for pharmacy analytics.",
+    subtitle: "Browse the available Power BI dashboards configured for pharmacy analytics.",
   },
   "/app/ordonnances": {
     title: "Ordonnances",
@@ -166,7 +171,7 @@ export default function AppShell() {
     .map((section) => ({
       ...section,
       items: section.items.filter(
-        (item) => !item.roles || item.roles.some((role) => user?.roles?.includes(role))
+        (item) => !item.permissions || item.permissions.some((permission) => hasPermission(user, permission))
       ),
     }))
     .filter((section) => section.items.length > 0);
@@ -177,11 +182,11 @@ export default function AppShell() {
   };
 
   return (
-    <div className="min-h-screen bg-[linear-gradient(180deg,#f9fcfd_0%,#f2f6f8_100%)] text-foreground">
-      <div className="flex min-h-screen">
+    <div className="h-screen overflow-hidden bg-[linear-gradient(180deg,#f9fcfd_0%,#f2f6f8_100%)] text-foreground">
+      <div className="flex h-full overflow-hidden">
         <aside
           className={cn(
-            "border-r border-border/70 bg-white/90 px-4 py-5 shadow-sm backdrop-blur transition-all duration-300",
+            "h-full flex-shrink-0 overflow-y-auto border-r border-border/70 bg-white/90 px-4 py-5 shadow-sm backdrop-blur transition-all duration-300",
             collapsed ? "w-[92px]" : "w-[280px]"
           )}
         >
@@ -285,8 +290,8 @@ export default function AppShell() {
           </div>
         </aside>
 
-        <div className="flex min-w-0 flex-1 flex-col">
-          <header className="sticky top-0 z-20 border-b border-border/70 bg-white/88 px-6 py-4 backdrop-blur">
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+          <header className="flex-shrink-0 border-b border-border/70 bg-white/88 px-6 py-4 backdrop-blur">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div>
                 <div className="mb-1 text-sm text-muted-foreground">
@@ -308,7 +313,7 @@ export default function AppShell() {
             </div>
           </header>
 
-          <main className="flex-1">
+          <main className="flex-1 overflow-y-auto">
             <div className="mx-auto flex max-w-7xl flex-col gap-6 px-6 py-6">
               <Outlet />
             </div>

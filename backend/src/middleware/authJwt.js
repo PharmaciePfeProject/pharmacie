@@ -1,4 +1,5 @@
 import jwt from "jsonwebtoken";
+import { normalizeAuthPayload } from "../utils/rbac.js";
 
 export function requireAuth(req, res, next) {
   const header = req.headers.authorization || "";
@@ -10,7 +11,7 @@ export function requireAuth(req, res, next) {
 
   try {
     const payload = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = payload; // { sub, email, username, roles, iat, exp }
+    req.user = normalizeAuthPayload(payload);
     return next();
   } catch (err) {
     return res.status(401).json({ message: "Invalid or expired token" });

@@ -1,6 +1,7 @@
   import { createBrowserRouter, Navigate } from "react-router-dom";
   import ProtectedRoute from "../components/ProtectedRoute";
   import AdminRoute from "../components/AdminRoute";
+  import PermissionRoute from "../components/PermissionRoute";
   import AppLayout from "../components/AppLayout";
   import Login from "../pages/Login";
   import Register from "../pages/Register";
@@ -26,6 +27,8 @@
   import InternalDeliveryDetails from "../pages/supply-flow/InternalDeliveryDetails";
   import BiDashboard from "../pages/bi/BiDashboard";
   import ReportsList from "../pages/bi/ReportsList";
+  import UsersManagement from "../pages/admin/UsersManagement";
+  import { PERMISSIONS } from "@/lib/roles";
 
   function PlaceholderPage({ title }: { title: string }) {
     return (
@@ -56,26 +59,62 @@
           children: [
             { index: true, element: <Navigate to="/app/dashboard" replace /> },
             { path: "dashboard", element: <Home /> },
-            { path: "products", element: <ProductsList /> },
-            { path: "products/:id", element: <ProductDetails /> },
-            { path: "stock", element: <StockList /> },
-            { path: "stock-lots", element: <StockLotsList /> },
-            { path: "stock-movements", element: <StockMovementsList /> },
-            { path: "stock-movements/:id", element: <StockMovementDetails /> },
-            { path: "distributions", element: <DistributionsList /> },
-            { path: "distributions/:id", element: <DistributionDetails /> },
-            { path: "inventories", element: <InventoriesList /> },
-            { path: "inventories/:id", element: <InventoryDetails /> },
-            { path: "external-orders", element: <ExternalOrdersList /> },
-            { path: "external-orders/:id", element: <ExternalOrderDetails /> },
-            { path: "internal-orders", element: <InternalOrdersList /> },
-            { path: "internal-orders/:id", element: <InternalOrderDetails /> },
-            { path: "receptions", element: <ReceptionsList /> },
-            { path: "receptions/:id", element: <ReceptionDetails /> },
-            { path: "internal-deliveries", element: <InternalDeliveriesList /> },
-            { path: "internal-deliveries/:id", element: <InternalDeliveryDetails /> },
-            { path: "bi", element: <BiDashboard /> },
-            { path: "bi/reports", element: <ReportsList /> },
+            {
+              element: <PermissionRoute permissions={[PERMISSIONS.PRODUCTS_READ]} />,
+              children: [
+                { path: "products", element: <ProductsList /> },
+                { path: "products/:id", element: <ProductDetails /> },
+              ],
+            },
+            {
+              element: <PermissionRoute permissions={[PERMISSIONS.STOCK_READ]} />,
+              children: [{ path: "stock", element: <StockList /> }],
+            },
+            {
+              element: <PermissionRoute permissions={[PERMISSIONS.STOCKLOTS_READ]} />,
+              children: [{ path: "stock-lots", element: <StockLotsList /> }],
+            },
+            {
+              element: <PermissionRoute permissions={[PERMISSIONS.MOVEMENTS_READ]} />,
+              children: [
+                { path: "stock-movements", element: <StockMovementsList /> },
+                { path: "stock-movements/:id", element: <StockMovementDetails /> },
+              ],
+            },
+            {
+              element: <PermissionRoute permissions={[PERMISSIONS.DISTRIBUTIONS_READ]} />,
+              children: [
+                { path: "distributions", element: <DistributionsList /> },
+                { path: "distributions/:id", element: <DistributionDetails /> },
+              ],
+            },
+            {
+              element: <PermissionRoute permissions={[PERMISSIONS.INVENTORIES_READ]} />,
+              children: [
+                { path: "inventories", element: <InventoriesList /> },
+                { path: "inventories/:id", element: <InventoryDetails /> },
+              ],
+            },
+            {
+              element: <PermissionRoute permissions={[PERMISSIONS.SUPPLY_READ]} />,
+              children: [
+                { path: "external-orders", element: <ExternalOrdersList /> },
+                { path: "external-orders/:id", element: <ExternalOrderDetails /> },
+                { path: "internal-orders", element: <InternalOrdersList /> },
+                { path: "internal-orders/:id", element: <InternalOrderDetails /> },
+                { path: "receptions", element: <ReceptionsList /> },
+                { path: "receptions/:id", element: <ReceptionDetails /> },
+                { path: "internal-deliveries", element: <InternalDeliveriesList /> },
+                { path: "internal-deliveries/:id", element: <InternalDeliveryDetails /> },
+              ],
+            },
+            {
+              element: <PermissionRoute permissions={[PERMISSIONS.ANALYTICS_READ]} />,
+              children: [
+                { path: "bi", element: <BiDashboard /> },
+                { path: "bi/reports", element: <ReportsList /> },
+              ],
+            },
             { path: "ordonnances", element: <PlaceholderPage title="Ordonnances" /> },
             { path: "orders", element: <PlaceholderPage title="Orders" /> },
             { path: "reporting", element: <PlaceholderPage title="Reporting" /> },
@@ -84,6 +123,10 @@
               element: <AdminRoute />,
               children: [
                 { path: "admin", element: <Admin /> },
+                {
+                  element: <PermissionRoute permissions={[PERMISSIONS.USERS_MANAGE, PERMISSIONS.ADMIN_ACCESS]} />,
+                  children: [{ path: "admin/users", element: <UsersManagement /> }],
+                },
                 { path: "admin/security", element: <PlaceholderPage title="Security" /> },
               ],
             },

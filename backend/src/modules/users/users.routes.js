@@ -1,12 +1,35 @@
 import { Router } from "express";
 import { requireAuth } from "../../middleware/authJwt.js";
-import { requireRole } from "../../middleware/requireRole.js";
+import { requirePermission } from "../../middleware/requirePermission.js";
+import { PERMISSIONS } from "../../utils/rbac.js";
+import { listUsers, updateUserRoles } from "./users.controller.js";
+import { updateUserRolesSchema, userParamsSchema } from "./users.schemas.js";
 
 const r = Router();
 
-// Example: only ADMIN (roleId = 1)
-r.get("/admin-only", requireAuth, requireRole([1]), (req, res) => {
-  res.json({ ok: true, message: "Welcome admin!", user: req.user });
-});
+function validate(schema, target = "body") {
+  return (req, res, next) => {
+    const parsed = schema.safeParse(req[target]);
+    if (!parsed.success) {
+      return res.status(400).json({
+        message: "Validation error",
+        errors: parsed.error.flatten(),
+      });
+    }
+
+    req[target] = parsed.data;
+    next();
+  };
+}
+
+r.get("/", requireAuth, requirePermission(PERMISSIONS.USERS_MANAGE), listUsers);
+r.put(
+  "/:id/roles",
+  requireAuth,
+  requirePermission(PERMISSIONS.USERS_MANAGE),
+  validate(userParamsSchema, "params"),
+  validate(updateUserRolesSchema),
+  updateUserRoles
+);
 
 export default r;

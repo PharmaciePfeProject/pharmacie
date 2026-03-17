@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { BarChart3, ExternalLink, Presentation, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 const reportEmbeds = [
   {
@@ -27,7 +28,7 @@ export default function BiDashboard() {
         <CardHeader className="space-y-4">
           <div className="inline-flex w-fit items-center gap-2 rounded-full bg-primary/10 px-4 py-2 text-sm font-medium text-primary">
             <BarChart3 className="h-4 w-4" />
-            Analytics / BI
+            BI & Analytics
           </div>
           <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
             <div>
@@ -55,7 +56,7 @@ export default function BiDashboard() {
         </CardHeader>
         <CardContent className="flex flex-wrap gap-3">
           <Button asChild className="rounded-2xl">
-            <Link to="/app/bi/reports">Browse reports</Link>
+            <Link to="/app/bi/reports">Browse BI reports</Link>
           </Button>
           <Button asChild variant="outline" className="rounded-2xl">
             <a
@@ -86,6 +87,14 @@ export default function BiDashboard() {
         ))}
       </div>
 
+      {availableEmbeds.length === 0 && (
+        <EmptyState
+          title="No embedded dashboards configured"
+          description="Add public Power BI report URLs in the frontend environment to preview dashboards directly on this page."
+          className="bg-white"
+        />
+      )}
+
       {availableEmbeds.length > 0 && (
         <div className="space-y-6">
           {availableEmbeds.map((report) => (
@@ -98,7 +107,7 @@ export default function BiDashboard() {
                   title={report.title}
                   src={report.url}
                   width="100%"
-                  height="800"
+                  height="720"
                   className="rounded-2xl border border-border"
                 />
               </CardContent>

@@ -1,6 +1,6 @@
 import { Navigate, Outlet } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
-import { ROLES } from "@/lib/roles";
+import { PERMISSIONS, hasPermission, hasRole, ROLES } from "@/lib/roles";
 
 export default function AdminRoute() {
   const { user, isLoading } = useAuth();
@@ -13,7 +13,10 @@ export default function AdminRoute() {
     );
   }
 
-  const isAdmin = user?.roles?.includes(ROLES.ADMIN);
+  const isAdmin =
+    hasRole(user, ROLES.ADMIN) ||
+    hasPermission(user, PERMISSIONS.USERS_MANAGE) ||
+    hasPermission(user, PERMISSIONS.ADMIN_ACCESS);
 
   if (!isAdmin) return <Navigate to="/app/dashboard" replace />;
 

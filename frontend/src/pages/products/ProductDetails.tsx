@@ -3,6 +3,8 @@ import { Link, useParams } from "react-router-dom";
 import { ArrowLeft, Barcode, Package2, Pill, ReceiptText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { fetchProductById } from "@/api/products";
+import { useAuth } from "@/auth/AuthContext";
+import { PERMISSIONS, hasPermission } from "@/lib/roles";
 import type { Product } from "./product.types";
 
 function formatDecimal(value: number | null | undefined) {
@@ -10,10 +12,13 @@ function formatDecimal(value: number | null | undefined) {
 }
 
 export default function ProductDetails() {
+  const { user } = useAuth();
   const { id } = useParams();
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const canManageProducts = hasPermission(user, PERMISSIONS.PRODUCTS_MANAGE);
+  const canReadStock = hasPermission(user, PERMISSIONS.STOCK_READ);
 
   useEffect(() => {
     const productId = Number(id);
@@ -62,17 +67,21 @@ export default function ProductDetails() {
         </Link>
 
         <div className="flex gap-3">
-          {product && (
+          {product && canReadStock && (
             <Link to={`/app/stock?product_id=${product.product_id}`}>
               <Button variant="outline" className="rounded-2xl">
                 View stock
               </Button>
             </Link>
           )}
-          <Button variant="outline" className="rounded-2xl">
-            Edit
-          </Button>
-          <Button className="rounded-2xl">Update master data</Button>
+          {canManageProducts && (
+            <>
+              <Button variant="outline" className="rounded-2xl">
+                Edit
+              </Button>
+              <Button className="rounded-2xl">Update master data</Button>
+            </>
+          )}
         </div>
       </div>
 

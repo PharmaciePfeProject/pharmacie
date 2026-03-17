@@ -7,6 +7,8 @@ import {
 } from "./products.controller.js";
 import { productBodySchema, productParamsSchema, productQuerySchema } from "./products.schemas.js";
 import { requireAuth } from "../../middleware/authJwt.js";
+import { requirePermission } from "../../middleware/requirePermission.js";
+import { PERMISSIONS } from "../../utils/rbac.js";
 
 const r = Router();
 
@@ -27,10 +29,17 @@ function validate(schema, target = "body") {
 
 r.get("/", requireAuth, validate(productQuerySchema, "query"), listProducts);
 r.get("/:id", requireAuth, validate(productParamsSchema, "params"), getProductById);
-r.post("/", requireAuth, validate(productBodySchema), createProduct);
+r.post(
+  "/",
+  requireAuth,
+  requirePermission(PERMISSIONS.PRODUCTS_MANAGE),
+  validate(productBodySchema),
+  createProduct
+);
 r.put(
   "/:id",
   requireAuth,
+  requirePermission(PERMISSIONS.PRODUCTS_MANAGE),
   validate(productParamsSchema, "params"),
   validate(productBodySchema),
   updateProduct

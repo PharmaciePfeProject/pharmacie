@@ -6,6 +6,8 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Input } from "@/components/ui/input";
 import { Pagination } from "@/components/ui/Pagination";
 import { createDefaultPagination, parsePageParam, parsePageSizeParam } from "@/lib/pagination";
+import { PERMISSIONS, hasPermission } from "@/lib/roles";
+import { useAuth } from "@/auth/AuthContext";
 import type { Product } from "./product.types";
 import type { PaginationMeta } from "@/types/pagination";
 
@@ -14,6 +16,7 @@ function formatDecimal(value: number | null | undefined) {
 }
 
 export default function ProductsList() {
+  const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [search, setSearch] = useState(searchParams.get("search") || "");
   const [typeFilter, setTypeFilter] = useState(searchParams.get("type_id") || "ALL");
@@ -24,6 +27,7 @@ export default function ProductsList() {
 
   const currentPage = parsePageParam(searchParams.get("page"));
   const currentPageSize = parsePageSizeParam(searchParams.get("pageSize"));
+  const canManageProducts = hasPermission(user, PERMISSIONS.PRODUCTS_MANAGE);
 
   useEffect(() => {
     setSearch(searchParams.get("search") || "");
@@ -137,7 +141,7 @@ export default function ProductsList() {
             <Button variant="outline" className="rounded-xl">
               Export
             </Button>
-            <Button className="rounded-xl">New product</Button>
+            {canManageProducts && <Button className="rounded-xl">New product</Button>}
           </div>
         </div>
       </div>
@@ -199,9 +203,11 @@ export default function ProductsList() {
                             View
                           </Button>
                         </Link>
-                        <Button size="sm" variant="outline" className="rounded-xl">
-                          Edit
-                        </Button>
+                        {canManageProducts && (
+                          <Button size="sm" variant="outline" className="rounded-xl">
+                            Edit
+                          </Button>
+                        )}
                       </div>
                     </td>
                   </tr>

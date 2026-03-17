@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { api } from "../api/axios";
+import type { PermissionKey, RoleKey } from "@/lib/roles";
 
 export type AuthUser = {
   id: number;
@@ -8,8 +9,11 @@ export type AuthUser = {
   firstname: string;
   lastname: string;
   function: string | null;
+  functionName?: string | null;
   actived: number;
-  roles: number[];
+  roleIds: number[];
+  roles: RoleKey[];
+  permissions: PermissionKey[];
 };
 
 type LoginPayload = { emailOrUsername: string; password: string };

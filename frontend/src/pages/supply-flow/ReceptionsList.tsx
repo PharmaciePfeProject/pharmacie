@@ -89,7 +89,7 @@ export default function ReceptionsList() {
       <div className="rounded-xl border bg-white p-5 shadow-sm">
         <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
           <div className="space-y-2"><p className="text-sm font-medium">Product ID</p><Input value={productId} onChange={(e) => setProductId(e.target.value)} /></div>
-          <div className="space-y-2"><p className="text-sm font-medium">Emplacement ID</p><Input value={emplacementId} onChange={(e) => setEmplacementId(e.target.value)} /></div>
+          <div className="space-y-2"><p className="text-sm font-medium">Location ID</p><Input value={emplacementId} onChange={(e) => setEmplacementId(e.target.value)} /></div>
           <div className="space-y-2"><p className="text-sm font-medium">State ID</p><Input value={stateId} onChange={(e) => setStateId(e.target.value)} /></div>
           <div className="space-y-2"><p className="text-sm font-medium">User ID</p><Input value={userId} onChange={(e) => setUserId(e.target.value)} /></div>
           <div className="space-y-2"><p className="text-sm font-medium">External order ID</p><Input value={externalOrderId} onChange={(e) => setExternalOrderId(e.target.value)} /></div>
@@ -109,7 +109,7 @@ export default function ReceptionsList() {
         <>
           <div className="overflow-x-auto rounded-xl border bg-white shadow-sm">
             <table className="table-auto w-full border-collapse text-sm">
-              <thead className="bg-muted/50"><tr className="text-left"><th className="px-4 py-3 text-sm font-semibold">ID</th><th className="px-4 py-3 text-sm font-semibold">Number</th><th className="px-4 py-3 text-sm font-semibold">Date</th><th className="px-4 py-3 text-sm font-semibold">External order</th><th className="px-4 py-3 text-sm font-semibold">Emplacement</th><th className="px-4 py-3 text-sm font-semibold">State</th><th className="px-4 py-3 text-sm font-semibold">User</th><th className="px-4 py-3 text-sm font-semibold">Lines</th><th className="px-4 py-3 text-sm font-semibold">Actions</th></tr></thead>
+              <thead className="bg-muted/50"><tr className="text-left"><th className="px-4 py-3 text-sm font-semibold">ID</th><th className="px-4 py-3 text-sm font-semibold">Number</th><th className="px-4 py-3 text-sm font-semibold">Date</th><th className="px-4 py-3 text-sm font-semibold">External order</th><th className="px-4 py-3 text-sm font-semibold">Location</th><th className="px-4 py-3 text-sm font-semibold">State</th><th className="px-4 py-3 text-sm font-semibold">User</th><th className="px-4 py-3 text-sm font-semibold">Lines</th><th className="px-4 py-3 text-sm font-semibold">Actions</th></tr></thead>
               <tbody>
                 {items.map((item) => (
                   <tr key={item.reception_id} className="border-t hover:bg-gray-50">

@@ -89,7 +89,7 @@ export default function DistributionsList() {
         <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
           <div className="space-y-2"><p className="text-sm font-medium">Product ID</p><Input value={productId} onChange={(e) => setProductId(e.target.value)} /></div>
           <div className="space-y-2"><p className="text-sm font-medium">District ID</p><Input value={districtId} onChange={(e) => setDistrictId(e.target.value)} /></div>
-          <div className="space-y-2"><p className="text-sm font-medium">Emplacement ID</p><Input value={emplacementId} onChange={(e) => setEmplacementId(e.target.value)} /></div>
+          <div className="space-y-2"><p className="text-sm font-medium">Location ID</p><Input value={emplacementId} onChange={(e) => setEmplacementId(e.target.value)} /></div>
           <div className="space-y-2"><p className="text-sm font-medium">User ID</p><Input value={userId} onChange={(e) => setUserId(e.target.value)} /></div>
           <div className="space-y-2"><p className="text-sm font-medium">Date from</p><Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-full" /></div>
           <div className="space-y-2"><p className="text-sm font-medium">Date to</p><Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-full" /></div>
@@ -113,7 +113,7 @@ export default function DistributionsList() {
                   <th className="px-4 py-3 text-sm font-semibold">Number</th>
                   <th className="px-4 py-3 text-sm font-semibold">Date</th>
                   <th className="px-4 py-3 text-sm font-semibold">District</th>
-                  <th className="px-4 py-3 text-sm font-semibold">Emplacement</th>
+                  <th className="px-4 py-3 text-sm font-semibold">Location</th>
                   <th className="px-4 py-3 text-sm font-semibold">User</th>
                   <th className="px-4 py-3 text-sm font-semibold">Ordonnance</th>
                   <th className="px-4 py-3 text-sm font-semibold">Lines</th>

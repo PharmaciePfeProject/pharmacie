@@ -1,6 +1,7 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { dbQuery } from "../../config/db.js";
+import { buildAccessFromRoleIds, DEFAULT_ROLE_ID } from "../../utils/rbac.js";
 
 function getSchemaName() {
   const rawSchema = process.env.ORACLE_SCHEMA || process.env.ORACLE_USER || "";
@@ -21,10 +22,48 @@ function signToken(payload) {
   });
 }
 
+async function getUserRoleIds(userId) {
+  const rolesRes = await dbQuery(
+    `SELECT ROLES_ID FROM ${USER_ROLES_TABLE} WHERE USER_ID = :id`,
+    { id: userId }
+  );
+
+  return rolesRes.rows.map((row) => row.ROLES_ID);
+}
+
+function shapeAuthUser(user, roleIds) {
+  const access = buildAccessFromRoleIds(roleIds);
+
+  return {
+    id: user.ID,
+    email: user.EMAIL,
+    username: user.USERNAME,
+    firstname: user.FIRSTNAME,
+    lastname: user.LASTNAME,
+    function: user.FUNCTION,
+    functionName: user.FUNCTION,
+    actived: user.ACTIVED,
+    roleIds: access.roleIds,
+    roles: access.roles,
+    permissions: access.permissions,
+  };
+}
+
+function signUserToken(user, roleIds) {
+  const access = buildAccessFromRoleIds(roleIds);
+
+  return signToken({
+    sub: user.ID,
+    email: user.EMAIL,
+    username: user.USERNAME,
+    roleIds: access.roleIds,
+    roles: access.roles,
+    permissions: access.permissions,
+  });
+}
+
 export async function register(req, res) {
   const { email, username, password, firstname, lastname, functionName } = req.body;
-
-  const DEFAULT_ROLE_ID = 2;
 
   const existing = await dbQuery(
     `SELECT ID FROM ${USERS_TABLE} WHERE EMAIL = :email`,
@@ -63,20 +102,21 @@ export async function register(req, res) {
     { userId, roleId: DEFAULT_ROLE_ID }
   );
 
-  const token = signToken({ sub: userId, email, username, roles: [DEFAULT_ROLE_ID] });
+  const createdUser = {
+    ID: userId,
+    EMAIL: email,
+    USERNAME: username,
+    FIRSTNAME: firstname,
+    LASTNAME: lastname,
+    FUNCTION: functionName,
+    ACTIVED: 1,
+  };
+
+  const token = signUserToken(createdUser, [DEFAULT_ROLE_ID]);
 
   return res.status(201).json({
     token,
-    user: {
-      id: userId,
-      email,
-      username,
-      firstname,
-      lastname,
-      function: functionName,
-      actived: 1,
-      roles: [DEFAULT_ROLE_ID],
-    },
+    user: shapeAuthUser(createdUser, [DEFAULT_ROLE_ID]),
   });
 }
 
@@ -98,26 +138,12 @@ export async function login(req, res) {
   const ok = await bcrypt.compare(password, user.PASSWORD);
   if (!ok) return res.status(401).json({ message: "Invalid credentials" });
 
-  const rolesRes = await dbQuery(
-    `SELECT ROLES_ID FROM ${USER_ROLES_TABLE} WHERE USER_ID = :id`,
-    { id: user.ID }
-  );
-  const roles = rolesRes.rows.map((r) => r.ROLES_ID);
-
-  const token = signToken({ sub: user.ID, email: user.EMAIL, username: user.USERNAME, roles });
+  const roleIds = await getUserRoleIds(user.ID);
+  const token = signUserToken(user, roleIds);
 
   return res.json({
     token,
-    user: {
-      id: user.ID,
-      email: user.EMAIL,
-      username: user.USERNAME,
-      firstname: user.FIRSTNAME,
-      lastname: user.LASTNAME,
-      function: user.FUNCTION,
-      actived: user.ACTIVED,
-      roles,
-    },
+    user: shapeAuthUser(user, roleIds),
   });
 }
 
@@ -141,22 +167,9 @@ export async function me(req, res) {
 
   const user = userRes.rows[0];
 
-  const rolesRes = await dbQuery(
-    `SELECT ROLES_ID FROM ${USER_ROLES_TABLE} WHERE USER_ID = :id`,
-    { id: userId }
-  );
-  const roles = rolesRes.rows.map((r) => r.ROLES_ID);
+  const roleIds = await getUserRoleIds(userId);
 
   return res.json({
-    user: {
-      id: user.ID,
-      email: user.EMAIL,
-      username: user.USERNAME,
-      firstname: user.FIRSTNAME,
-      lastname: user.LASTNAME,
-      function: user.FUNCTION,
-      actived: user.ACTIVED,
-      roles,
-    },
+    user: shapeAuthUser(user, roleIds),
   });
 }
