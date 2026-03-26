@@ -1,60 +1,25 @@
-/**
- * ============================================
- * MODULE: Prescriptions Controller
- * ============================================
- * 
- * Purpose: Manages prescription records and lines.
- * - List prescriptions with role-based filtering
- * - Create prescriptions with automatic line insertion
- * - Get prescription agents and types from database
- * - Ensure doctors are linked to prescriptions
- * 
- * Key Features:
- * - Doctor-scoped: MEDECIN role sees only their own prescriptions
- * - System date: Prescription dates are set server-side (not client-editable)
- * - Pagination: Large result sets are automatically paginated
- * - Filtering: Support multiple filter parameters (agent, type, doctor, date range)
- */
-
 import { dbQuery, initDb } from "../../config/db.js";
 import { chunkValues } from "../../utils/oracle.js";
 import { runPaginatedQuery } from "../../utils/pagination.js";
 import { ROLE_KEYS } from "../../utils/rbac.js";
 
-/**
- * Get the Oracle database schema name from environment variables.
- * @returns {string} Uppercase schema name
- */
 function getSchemaName() {
   const rawSchema = process.env.ORACLE_SCHEMA || process.env.ORACLE_USER || "";
   return rawSchema.trim().toUpperCase().replace(/[^A-Z0-9_]/g, "");
 }
 
-/**
- * Add schema prefix to table names.
- * Example: withSchema("PRESCRIPTION") → "PHARMACIE.PRESCRIPTION"
- * @param {string} objectName - Table name without schema
- * @returns {string} Full table name with schema prefix
- */
 function withSchema(objectName) {
   const schema = getSchemaName();
   return schema ? `${schema}.${objectName}` : objectName;
 }
 
-// Database table names with schema prefix
 const PRESCRIPTION_TABLE = withSchema("PRESCRIPTION");
 const PRESCRIPTION_LINE_TABLE = withSchema("PRESCRIPTION_LINE");
 const PRODUCT_TABLE = withSchema("PRODUCT");
 const DOCTOR_TABLE = withSchema("DOCTOR");
 const USERS_TABLE = withSchema("UTILISATEUR");
-
-// Track if we've already checked for DOCTOR.ACTIVED column
 let doctorActivedChecked = false;
 
-/**
- * Ensure the DOCTOR table has the ACTIVED column (same as in auth.controller).
- * Prevents duplicate column creation attempts.
- */
 async function ensureDoctorActivedColumn() {
   if (doctorActivedChecked) return;
 
@@ -75,11 +40,6 @@ async function ensureDoctorActivedColumn() {
   doctorActivedChecked = true;
 }
 
-/**
- * SQL SELECT clause for prescription header records.
- * Includes prescription details and linked doctor name.
- * Column aliases are standardized for easy client-side mapping.
- */
 const prescriptionHeaderSelect = `
   SELECT
     p.ID AS prescription_id,
@@ -95,12 +55,6 @@ const prescriptionHeaderSelect = `
   LEFT JOIN ${DOCTOR_TABLE} d ON d.ID = p.DOCTOR_ID
 `;
 
-/**
- * Normalize a name by trimming whitespace and removing extra internal spaces.
- * Ensures consistent formatting for name comparisons.
- * @param {string} value - Input name
- * @returns {string} Normalized name
- */
 function normalizeName(value) {
   return String(value || "")
     .trim()

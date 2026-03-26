@@ -1,40 +1,13 @@
-/**
- * ============================================
- * MODULE: Authentication Controller
- * ============================================
- * 
- * Purpose: Handles user registration, login, and authentication.
- * - Manages user account creation with password hashing
- * - Authenticates users and issues JWT tokens
- * - Auto-syncs doctor profiles for medical staff
- * 
- * Key Functions:
- * - register(req, res): Create new user account
- * - login(req, res): Authenticate user and return JWT token
- * - me(req, res): Get current authenticated user info
- */
-
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { dbQuery } from "../../config/db.js";
 import { buildAccessFromRoleIds, DEFAULT_ROLE_ID, ROLE_KEYS } from "../../utils/rbac.js";
 
-/**
- * Get the Oracle database schema name from environment variables.
- * The schema name is used as prefix for all table names (e.g., PHARMACIE.UTILISATEUR).
- * @returns {string} Uppercase schema name or empty string if not configured
- */
 function getSchemaName() {
   const rawSchema = process.env.ORACLE_SCHEMA || process.env.ORACLE_USER || "";
   return rawSchema.trim().toUpperCase().replace(/[^A-Z0-9_]/g, "");
 }
 
-/**
- * Add schema prefix to Oracle table names.
- * Example: withSchema("UTILISATEUR") → "PHARMACIE.UTILISATEUR"
- * @param {string} objectName - The table name without schema prefix
- * @returns {string} Full table name with schema prefix
- */
 function withSchema(objectName) {
   const schema = getSchemaName();
   return schema ? `${schema}.${objectName}` : objectName;
@@ -44,15 +17,8 @@ const USERS_TABLE = withSchema("UTILISATEUR");
 const USER_ROLES_TABLE = withSchema("UTILISATEUR_ROLE");
 const DOCTOR_TABLE = withSchema("DOCTOR");
 
-// Flag to track if we've already checked for the ACTIVED column in DOCTOR table
-// This prevents repeated database calls to check for the same column
 let doctorActivedColumnChecked = false;
 
-/**
- * Ensure the DOCTOR table has the ACTIVED column.
- * If the column doesn't exist, add it with a default value of 1 (active).
- * This function runs only once, controlled by the doctorActivedColumnChecked flag.
- */
 async function ensureDoctorActivedColumn() {
   if (doctorActivedColumnChecked) return;
 
@@ -66,7 +32,6 @@ async function ensureDoctorActivedColumn() {
     { owner }
   );
 
-  // Column doesn't exist, so add it to the DOCTOR table
   if (result.rows.length === 0) {
     await dbQuery(`ALTER TABLE ${DOCTOR_TABLE} ADD (ACTIVED NUMBER(1) DEFAULT 1 NOT NULL)`);
   }
@@ -74,23 +39,11 @@ async function ensureDoctorActivedColumn() {
   doctorActivedColumnChecked = true;
 }
 
-/**
- * Get the next available ID for a new doctor record.
- * Uses MAX(ID) + 1 pattern (Note: Should use Oracle SEQUENCE in production).
- * @returns {Promise<number>} The next available ID
- */
 async function getNextDoctorId() {
   const result = await dbQuery(`SELECT NVL(MAX(ID), 0) + 1 AS NEXT_ID FROM ${DOCTOR_TABLE}`);
   return result.rows[0].NEXT_ID;
 }
 
-/**
- * Create a new DOCTOR record in the database.
- * Called when a user with DOCTOR function registers.
- * @param {Object} userInfo - Object with firstname and lastname
- * @param {string} userInfo.firstname - Doctor's first name
- * @param {string} userInfo.lastname - Doctor's last name
- */
 async function createDoctorFromUser({ firstname, lastname }) {
   await ensureDoctorActivedColumn();
 
@@ -107,29 +60,12 @@ async function createDoctorFromUser({ firstname, lastname }) {
   );
 }
 
-/**
- * Normalize a name string by trimming whitespace and removing extra spaces.
- * Ensures consistent name formatting across the system.
- * Example: "  John   Doe  " → "John Doe"
- * @param {string} value - Input name to normalize
- * @returns {string} Normalized name
- */
 function normalizeName(value) {
   return String(value || "")
     .trim()
     .replace(/\s+/g, " ");
 }
 
-/**
- * Check if a user's profile should be synced with the DOCTOR table.
- * A doctor profile needs syncing if:
- * 1. User has FUNCTION = "DOCTOR", OR
- * 2. User has the MEDECIN role assigned
- * 
- * @param {Object} user - User object from database
- * @param {Array<number>} roleIds - Array of role IDs assigned to the user
- * @returns {boolean} true if doctor profile should be synced, false otherwise
- */
 function shouldSyncDoctorProfile(user, roleIds) {
   const functionName = String(user?.FUNCTION || "").trim().toUpperCase();
   if (functionName === "DOCTOR") return true;
@@ -138,21 +74,6 @@ function shouldSyncDoctorProfile(user, roleIds) {
   return access.roles.includes(ROLE_KEYS.MEDECIN);
 }
 
-/**
- * Ensure doctor profile exists and is active for a medical staff user.
- * This function:
- * 1. Checks if user should have a doctor profile (DOCTOR function or MEDECIN role)
- * 2. Normalizes the user's full name
- * 3. Searches for existing doctor record by name matching
- * 4. Creates new doctor record if not found
- * 5. Reactivates doctor record if it was previously deactivated
- * 
- * This "safety net" function is called during login and user info retrieval
- * to ensure doctor records are always in sync.
- * 
- * @param {Object} user - User object from database (must have FIRSTNAME, LASTNAME)
- * @param {Array<number>} roleIds - User's assigned role IDs
- */
 async function ensureDoctorProfileForUser(user, roleIds) {
   if (!shouldSyncDoctorProfile(user, roleIds)) return;
 
@@ -164,7 +85,6 @@ async function ensureDoctorProfileForUser(user, roleIds) {
 
   await ensureDoctorActivedColumn();
 
-  // Try to find existing doctor record by matching full name
   const existing = await dbQuery(
     `SELECT ID, NVL(ACTIVED, 1) AS ACTIVED
      FROM ${DOCTOR_TABLE}
@@ -174,13 +94,11 @@ async function ensureDoctorProfileForUser(user, roleIds) {
     { name: fullName }
   );
 
-  // Doctor doesn't exist yet, so create a new record
   if (existing.rows.length === 0) {
     await createDoctorFromUser({ firstname, lastname });
     return;
   }
 
-  // Doctor exists but might be deactivated, so reactivate if needed
   const doctor = existing.rows[0];
   if (Number(doctor.ACTIVED ?? 1) !== 1) {
     await dbQuery(`UPDATE ${DOCTOR_TABLE} SET ACTIVED = 1 WHERE ID = :id`, {
@@ -189,23 +107,12 @@ async function ensureDoctorProfileForUser(user, roleIds) {
   }
 }
 
-/**
- * Sign a JWT token with the given payload.
- * Token expires after 7 days.
- * @param {Object} payload - The data to encode in the token
- * @returns {string} Signed JWT token
- */
 function signToken(payload) {
   return jwt.sign(payload, process.env.JWT_SECRET, {
     expiresIn: "7d",
   });
 }
 
-/**
- * Retrieve all role IDs assigned to a specific user.
- * @param {number} userId - The user ID to look up
- * @returns {Promise<Array<number>>} Array of role IDs assigned to the user
- */
 async function getUserRoleIds(userId) {
   const rolesRes = await dbQuery(
     `SELECT ROLES_ID FROM ${USER_ROLES_TABLE} WHERE USER_ID = :id`,
@@ -215,14 +122,6 @@ async function getUserRoleIds(userId) {
   return rolesRes.rows.map((row) => row.ROLES_ID);
 }
 
-/**
- * Transform user data into the format returned to the frontend.
- * Includes user info, assigned roles, and calculated permissions.
- * 
- * @param {Object} user - User record from database
- * @param {Array<number>} roleIds - Array of role IDs for the user
- * @returns {Object} Formatted user object with roles and permissions
- */
 function shapeAuthUser(user, roleIds) {
   const access = buildAccessFromRoleIds(roleIds);
 
@@ -241,14 +140,6 @@ function shapeAuthUser(user, roleIds) {
   };
 }
 
-/**
- * Create a JWT token specifically for a user.
- * Token payload includes user ID, email, and calculated permissions.
- * 
- * @param {Object} user - User record from database (must have ID, EMAIL, USERNAME)
- * @param {Array<number>} roleIds - User's assigned role IDs
- * @returns {string} Signed JWT token for this user
- */
 function signUserToken(user, roleIds) {
   const access = buildAccessFromRoleIds(roleIds);
 
