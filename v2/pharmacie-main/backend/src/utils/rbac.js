@@ -1,32 +1,3 @@
-/**
- * ============================================
- * UTILITY MODULE: Role-Based Access Control (RBAC)
- * ============================================
- * 
- * Purpose: Centralized role and permission definitions for the pharmacy system.
- * 
- * System Architecture:
- * 1. ROLE_KEYS: All role names used in the system
- * 2. PERMISSIONS: All permission flags (format: "module.action")
- * 3. ROLE_DEFINITIONS: Maps role ID → role details + permissions list
- * 4. Helper functions: Convert between role IDs, keys, and permissions
- * 
- * Permission Format: "module.action" (e.g., "products.read", "stock.manage")
- * This allows fine-grained access control in any API endpoint.
- * 
- * Role Hierarchy:
- * - ADMIN (ID 1): All permissions (superuser)
- * - PHARMACIEN (ID 2): Default role, broad read access
- * - GESTIONNAIRE_STOCK (ID 4): Stock management focused
- * - PREPARATEUR (ID 3): Limited to preparation tasks
- * - MEDECIN (ID 5): Read-only access, prescriptions
- * - RESPONSABLE_REPORTING (ID 6): Analytics and reporting access
- */
-
-/**
- * All role identifiers in the system.
- * These string keys are used throughout the codebase for role checking.
- */
 export const ROLE_KEYS = {
   ADMIN: "ADMIN",
   PHARMACIEN: "PHARMACIEN",
@@ -36,20 +7,6 @@ export const ROLE_KEYS = {
   RESPONSABLE_REPORTING: "RESPONSABLE_REPORTING",
 };
 
-/**
- * All permissions available in the system.
- * Permissions are structured as "module.action" for clarity.
- * These are assigned to roles in ROLE_DEFINITIONS.
- * 
- * Permission Groups:
- * - PRODUCTS: Product catalog management
- * - STOCK: Inventory and stock management
- * - DISTRIBUTIONS: Prescription distribution tracking
- * - INVENTORIES: Physical inventory counts
- * - SUPPLY: Supply chain management
- * - ANALYTICS: Reporting and business intelligence
- * - USERS and ADMIN: System administration
- */
 export const PERMISSIONS = {
   PRODUCTS_READ: "products.read",
   PRODUCTS_MANAGE: "products.manage",
@@ -67,26 +24,12 @@ export const PERMISSIONS = {
   ADMIN_ACCESS: "admin.access",
 };
 
-/**
- * Complete role definitions: ID → role details and permissions.
- * 
- * Each role definition includes:
- * - key: The role identifier (matches ROLE_KEYS)
- * - label: Human-readable role name
- * - permissions: Array of permission strings assigned to this role
- * 
- * Note: The ID is the key in the object (1-6), not inside the role definition.
- * Database UTILISATEUR_ROLE.ROLES_ID stores these IDs.
- */
 export const ROLE_DEFINITIONS = {
-  // ID 1: ADMIN - Has all permissions, can do everything
   1: {
     key: ROLE_KEYS.ADMIN,
     label: "Administrator",
     permissions: Object.values(PERMISSIONS),
   },
-  
-  // ID 2: PHARMACIEN - Default role, broad access but no management
   2: {
     key: ROLE_KEYS.PHARMACIEN,
     label: "Pharmacien",
@@ -102,8 +45,6 @@ export const ROLE_DEFINITIONS = {
       PERMISSIONS.ANALYTICS_READ,
     ],
   },
-  
-  // ID 3: PREPARATEUR - Limited to preparation and reading
   3: {
     key: ROLE_KEYS.PREPARATEUR,
     label: "Preparateur",
@@ -116,8 +57,6 @@ export const ROLE_DEFINITIONS = {
       PERMISSIONS.SUPPLY_READ,
     ],
   },
-  
-  // ID 4: GESTIONNAIRE_STOCK - Focused on stock management
   4: {
     key: ROLE_KEYS.GESTIONNAIRE_STOCK,
     label: "Gestionnaire stock",
@@ -133,8 +72,6 @@ export const ROLE_DEFINITIONS = {
       PERMISSIONS.ANALYTICS_READ,
     ],
   },
-  
-  // ID 5: MEDECIN - Doctor role, read-only access to prescriptions
   5: {
     key: ROLE_KEYS.MEDECIN,
     label: "Medecin",
@@ -145,8 +82,6 @@ export const ROLE_DEFINITIONS = {
       PERMISSIONS.ANALYTICS_READ,
     ],
   },
-  
-  // ID 6: RESPONSABLE_REPORTING - Focuses on analytics and reporting
   6: {
     key: ROLE_KEYS.RESPONSABLE_REPORTING,
     label: "Responsable reporting",
@@ -163,49 +98,20 @@ export const ROLE_DEFINITIONS = {
   },
 };
 
-/**
- * The default role ID assigned to new users.
- * Set to 2 = PHARMACIEN (the most general role).
- * Admins can change a user's role after creation.
- */
 export const DEFAULT_ROLE_ID = 2;
 
-/**
- * Remove duplicate values from an array.
- * Uses JavaScript Set for efficient deduplication.
- * @param {Array} values - Input array (can contain duplicates)
- * @returns {Array} Array with duplicates removed, order preserved by first occurrence
- */
 function unique(values) {
   return [...new Set(values)];
 }
 
-/**
- * Look up a role definition by its database ID (1-6).
- * @param {number} roleId - The role ID from UTILISATEUR_ROLE.ROLES_ID
- * @returns {Object|null} The role definition object, or null if not found
- */
 export function getRoleDefinitionById(roleId) {
   return ROLE_DEFINITIONS[Number(roleId)] || null;
 }
 
-/**
- * Look up a role definition by its key name (e.g., "ADMIN", "MEDECIN").
- * @param {string} roleKey - The role key from ROLE_KEYS
- * @returns {Object|null} The role definition object, or null if not found
- */
 export function getRoleDefinitionByKey(roleKey) {
   return Object.entries(ROLE_DEFINITIONS).find(([, value]) => value.key === roleKey)?.[1] || null;
 }
 
-/**
- * Convert an array of role IDs to their corresponding role key strings.
- * Example: [1, 2] → ["ADMIN", "PHARMACIEN"]
- * Removes duplicates and handles unknown role IDs gracefully.
- * 
- * @param {Array<number>} roleIds - Array of role IDs (e.g., [1, 2, 5])
- * @returns {Array<string>} Array of role keys (e.g., ["ADMIN", "PHARMACIEN", "MEDECIN"])
- */
 export function getRoleKeysFromIds(roleIds = []) {
   return unique(
     roleIds.map((roleId) => {
@@ -215,14 +121,6 @@ export function getRoleKeysFromIds(roleIds = []) {
   );
 }
 
-/**
- * Convert an array of role key strings to their corresponding role IDs.
- * Example: ["ADMIN", "MEDECIN"] → [1, 5]
- * Inverse operation of getRoleKeysFromIds().
- * 
- * @param {Array<string>} roleKeys - Array of role keys (e.g., ["ADMIN", "PHARMACIEN"])
- * @returns {Array<number>} Array of role IDs (e.g., [1, 2])
- */
 export function getRoleIdsFromKeys(roleKeys = []) {
   return unique(
     roleKeys
@@ -234,14 +132,6 @@ export function getRoleIdsFromKeys(roleKeys = []) {
   );
 }
 
-/**
- * Get all unique permissions for a list of role keys.
- * Combines permissions from all provided roles, removing duplicates.
- * Example: ["ADMIN", "MEDECIN"] → ["products.read", "products.manage", "stock.read", ...]
- * 
- * @param {Array<string>} roleKeys - Array of role keys to look up
- * @returns {Array<string>} Array of unique permission strings
- */
 export function getPermissionsFromRoleKeys(roleKeys = []) {
   const permissions = roleKeys.flatMap((roleKey) => {
     const definition = getRoleDefinitionByKey(roleKey);
@@ -251,19 +141,6 @@ export function getPermissionsFromRoleKeys(roleKeys = []) {
   return unique(permissions);
 }
 
-/**
- * Build a complete access object from a list of role IDs.
- * This is the main function used after authentication to calculate user access.
- * 
- * Process:
- * 1. Normalize role IDs (ensure unique, numeric)
- * 2. Convert role IDs to role key strings
- * 3. Calculate all permissions for these roles
- * 4. Return structured access object
- * 
- * @param {Array<number>} roleIds - Array of role IDs assigned to the user
- * @returns {Object} Access object with normalized roleIds, roles (keys), and permissions
- */
 export function buildAccessFromRoleIds(roleIds = []) {
   const normalizedRoleIds = unique(roleIds.map((roleId) => Number(roleId)).filter(Number.isFinite));
   const roles = getRoleKeysFromIds(normalizedRoleIds);
