@@ -64,7 +64,6 @@ export default function PrescriptionsPage() {
   const [doctorId, setDoctorId] = useState("");
   const [prescriptionSearch, setPrescriptionSearch] = useState("");
   const [activePrescriptionSearch, setActivePrescriptionSearch] = useState("");
-
   const [agentId, setAgentId] = useState("");
   const [agentSituation, setAgentSituation] = useState("");
   const [prescriptionNumber, setPrescriptionNumber] = useState("");
@@ -72,38 +71,20 @@ export default function PrescriptionsPage() {
   const [systemDateLabel, setSystemDateLabel] = useState("");
   const [lines, setLines] = useState<LineForm[]>([createLine()]);
 
-  const canCreate = useMemo(() => {
-    return hasPermission(user, PERMISSIONS.PRESCRIPTIONS_MANAGE);
-  }, [user]);
-
-  const isDoctorUser = useMemo(
-    () => Boolean(user?.roles?.includes("MEDECIN")),
+  const canCreate = useMemo(
+    () => hasPermission(user, PERMISSIONS.PRESCRIPTIONS_MANAGE),
     [user]
   );
-
-  const selectableDoctors = useMemo(() => {
-    return doctors;
-  }, [doctors]);
+  const isDoctorUser = useMemo(() => Boolean(user?.roles?.includes("MEDECIN")), [user]);
+  const selectableDoctors = useMemo(() => doctors, [doctors]);
 
   const helperCards = useMemo(
     () => [
-      {
-        label: "Accessible doctors",
-        value: selectableDoctors.length,
-        tone: "blue",
-      },
-      {
-        label: "Loaded products",
-        value: products.length,
-        tone: "emerald",
-      },
-      {
-        label: "Current results",
-        value: items.length,
-        tone: "slate",
-      },
+      { label: t("prescriptions.card.doctors"), value: selectableDoctors.length, tone: "blue" },
+      { label: t("prescriptions.card.products"), value: products.length, tone: "emerald" },
+      { label: t("prescriptions.card.results"), value: items.length, tone: "slate" },
     ],
-    [items.length, products.length, selectableDoctors.length]
+    [items.length, products.length, selectableDoctors.length, t]
   );
 
   const selectedAgent = useMemo(
@@ -113,8 +94,8 @@ export default function PrescriptionsPage() {
 
   const agentLookupError = useMemo(() => {
     if (!agentId.trim()) return null;
-    return selectedAgent ? null : "Agent ID not found. Please type a valid existing ID.";
-  }, [agentId, selectedAgent]);
+    return selectedAgent ? null : t("prescriptions.invalidAgent");
+  }, [agentId, selectedAgent, t]);
 
   const loadData = async (page = 1, pageSize = 10, prescriptionNumber = activePrescriptionSearch) => {
     const [prescriptionsRes, productsRes, doctorsRes, agentsRes, typesRes] = await Promise.all([
@@ -135,16 +116,13 @@ export default function PrescriptionsPage() {
     setDoctors(doctorsRes);
     setAgents(agentsRes);
     setTypes(typesRes);
-
   };
 
   useEffect(() => {
     if (isDoctorUser) {
       if (selectableDoctors.length > 0) {
         const forcedDoctorId = String(selectableDoctors[0].doctor_id);
-        if (doctorId !== forcedDoctorId) {
-          setDoctorId(forcedDoctorId);
-        }
+        if (doctorId !== forcedDoctorId) setDoctorId(forcedDoctorId);
       } else if (doctorId) {
         setDoctorId("");
       }
@@ -165,28 +143,19 @@ export default function PrescriptionsPage() {
 
     if (selectedAgent) {
       const nextSituation = selectedAgent.agent_situation || "";
-      if (agentSituation !== nextSituation) {
-        setAgentSituation(nextSituation);
-      }
+      if (agentSituation !== nextSituation) setAgentSituation(nextSituation);
       return;
     }
 
     if (agentId.trim()) {
-      if (agentSituation) {
-        setAgentSituation("");
-      }
+      if (agentSituation) setAgentSituation("");
       return;
     }
 
     const firstAgent = agents[0];
-    if (agentId !== firstAgent.agent_id) {
-      setAgentId(firstAgent.agent_id);
-    }
-
+    if (agentId !== firstAgent.agent_id) setAgentId(firstAgent.agent_id);
     const firstSituation = firstAgent.agent_situation || "";
-    if (agentSituation !== firstSituation) {
-      setAgentSituation(firstSituation);
-    }
+    if (agentSituation !== firstSituation) setAgentSituation(firstSituation);
   }, [agentId, agentSituation, agents, selectedAgent]);
 
   useEffect(() => {
@@ -213,7 +182,7 @@ export default function PrescriptionsPage() {
         setError(null);
         await loadData();
       } catch (err: any) {
-        if (active) setError(err?.response?.data?.message || `${t("common.loading")} prescriptions failed.`);
+        if (active) setError(err?.response?.data?.message || t("prescriptions.loadFailed"));
       } finally {
         if (active) setLoading(false);
       }
@@ -222,7 +191,7 @@ export default function PrescriptionsPage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [t]);
 
   const updateLine = (index: number, field: keyof LineForm, value: string) => {
     setLines((prev) =>
@@ -230,13 +199,8 @@ export default function PrescriptionsPage() {
     );
   };
 
-  const addLine = () => {
-    setLines((prev) => [...prev, createLine()]);
-  };
-
-  const removeLine = (index: number) => {
-    setLines((prev) => prev.filter((_, lineIndex) => lineIndex !== index));
-  };
+  const addLine = () => setLines((prev) => [...prev, createLine()]);
+  const removeLine = (index: number) => setLines((prev) => prev.filter((_, lineIndex) => lineIndex !== index));
 
   const resetForm = () => {
     setAgentId("");
@@ -334,7 +298,7 @@ export default function PrescriptionsPage() {
 
     const invalidLine = lines.find((line) => line.product_id.trim() && !getProductById(line.product_id));
     if (invalidLine) {
-      setError(`Product ID "${invalidLine.product_id}" was not found. Please correct it before saving.`);
+      setError(`Product ID "${invalidLine.product_id}" ${t("prescriptions.invalidProduct")}`);
       return;
     }
 
@@ -351,12 +315,12 @@ export default function PrescriptionsPage() {
       }));
 
     if (payloadLines.length === 0) {
-      setError("Add at least one valid line (product + quantity).");
+      setError(t("prescriptions.needLine"));
       return;
     }
 
     if (!agentId) {
-      setError("Please select an agent.");
+      setError(t("prescriptions.needAgent"));
       return;
     }
 
@@ -366,7 +330,7 @@ export default function PrescriptionsPage() {
     }
 
     if (!doctorId) {
-      setError("Please select a doctor.");
+      setError(t("prescriptions.needDoctor"));
       return;
     }
 
@@ -386,7 +350,7 @@ export default function PrescriptionsPage() {
       resetForm();
       await loadData(1, pagination.pageSize);
     } catch (err: any) {
-      setError(err?.response?.data?.message || "Unable to create prescription.");
+      setError(err?.response?.data?.message || t("prescriptions.createFailed"));
     } finally {
       setSubmitting(false);
     }
@@ -397,7 +361,7 @@ export default function PrescriptionsPage() {
       setLoading(true);
       await loadData(page, pageSize, activePrescriptionSearch);
     } catch (err: any) {
-      setError(err?.response?.data?.message || "Failed to load prescriptions.");
+      setError(err?.response?.data?.message || t("prescriptions.loadFailed"));
     } finally {
       setLoading(false);
     }
@@ -405,15 +369,15 @@ export default function PrescriptionsPage() {
 
   const onSearchSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
     const nextSearch = prescriptionSearch.trim();
+
     try {
       setLoading(true);
       setError(null);
       setActivePrescriptionSearch(nextSearch);
       await loadData(1, pagination.pageSize, nextSearch);
     } catch (err: any) {
-      setError(err?.response?.data?.message || "Failed to search prescriptions.");
+      setError(err?.response?.data?.message || t("prescriptions.searchFailed"));
     } finally {
       setLoading(false);
     }
@@ -427,7 +391,7 @@ export default function PrescriptionsPage() {
       setActivePrescriptionSearch("");
       await loadData(1, pagination.pageSize, "");
     } catch (err: any) {
-      setError(err?.response?.data?.message || "Failed to reload prescriptions.");
+      setError(err?.response?.data?.message || t("prescriptions.reloadFailed"));
     } finally {
       setLoading(false);
     }
@@ -438,20 +402,18 @@ export default function PrescriptionsPage() {
       <div className="rounded-xl border bg-white p-5 shadow-sm">
         <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
           <div>
-            <h2 className="text-2xl font-semibold tracking-tight">Doctor prescriptions workspace</h2>
+            <h2 className="text-2xl font-semibold tracking-tight">{t("prescriptions.workspaceTitle")}</h2>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-              Use this workspace to create and review prescriptions backed by the real Oracle
-              prescription tables. The form stays readably structured so a new doctor or admin can
-              follow the process without guessing the data flow.
+              {t("prescriptions.workspaceBody")}
             </p>
           </div>
 
           <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
-            <p className="text-sm font-semibold text-slate-900">Recommended workflow</p>
+            <p className="text-sm font-semibold text-slate-900">{t("prescriptions.workflowTitle")}</p>
             <ol className="mt-3 space-y-2 text-sm text-slate-600">
-              <li>1. Select the doctor, agent, and prescription type.</li>
-              <li>2. Add one or more medicine lines with quantities.</li>
-              <li>3. Save the prescription, then review it in the history table below.</li>
+              <li>1. {t("prescriptions.workflow.one")}</li>
+              <li>2. {t("prescriptions.workflow.two")}</li>
+              <li>3. {t("prescriptions.workflow.three")}</li>
             </ol>
           </div>
         </div>
@@ -478,12 +440,12 @@ export default function PrescriptionsPage() {
           <form className="mt-4 space-y-4" onSubmit={onSubmit}>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-5">
               <div className="space-y-2">
-                <p className="text-sm font-medium">Agent ID</p>
+                <p className="text-sm font-medium">{t("prescriptions.agentId")}</p>
                 <Input
                   list="prescription-agent-options"
                   value={agentId}
                   onChange={(e) => setAgentId(e.target.value)}
-                  placeholder="Type or choose an agent ID"
+                  placeholder={t("prescriptions.agentPlaceholder")}
                 />
                 <datalist id="prescription-agent-options">
                   {agents.map((agent) => (
@@ -492,30 +454,29 @@ export default function PrescriptionsPage() {
                     </option>
                   ))}
                 </datalist>
-                <p className="text-xs text-muted-foreground">
-                  You can type the agent ID directly. If it does not exist, the form will ask you to correct it.
-                </p>
+                <p className="text-xs text-muted-foreground">{t("prescriptions.agentHint")}</p>
                 {agentLookupError ? <p className="text-xs text-destructive">{agentLookupError}</p> : null}
               </div>
+
               <div className="space-y-2">
-                <p className="text-sm font-medium">Agent situation</p>
+                <p className="text-sm font-medium">{t("prescriptions.agentSituation")}</p>
                 <Input value={agentSituation} readOnly />
-                <p className="text-xs text-muted-foreground">
-                  Filled automatically from the selected agent. It stays read-only in the current backend flow.
-                </p>
+                <p className="text-xs text-muted-foreground">{t("prescriptions.agentSituationHint")}</p>
               </div>
+
               <div className="space-y-2">
-                <p className="text-sm font-medium">Prescription number</p>
+                <p className="text-sm font-medium">{t("prescriptions.number")}</p>
                 <Input value={prescriptionNumber} onChange={(e) => setPrescriptionNumber(e.target.value)} />
               </div>
+
               <div className="space-y-2">
-                <p className="text-sm font-medium">Type</p>
+                <p className="text-sm font-medium">{t("prescriptions.type")}</p>
                 <select
                   className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm shadow-sm outline-none focus:border-primary"
                   value={prescriptionType}
                   onChange={(e) => setPrescriptionType(e.target.value)}
                 >
-                  <option value="">Select type</option>
+                  <option value="">{t("prescriptions.selectType")}</option>
                   {types.map((entry) => (
                     <option key={entry.type} value={entry.type}>
                       {entry.type}
@@ -523,22 +484,22 @@ export default function PrescriptionsPage() {
                   ))}
                 </select>
               </div>
+
               <div className="space-y-2">
-                <p className="text-sm font-medium">Date</p>
+                <p className="text-sm font-medium">{t("common.date")}</p>
                 <Input value={systemDateLabel} readOnly />
-                <p className="text-xs text-muted-foreground">
-                  The saved date is set automatically by the server when you create the prescription.
-                </p>
+                <p className="text-xs text-muted-foreground">{t("prescriptions.dateHint")}</p>
               </div>
+
               <div className="space-y-2">
-                <p className="text-sm font-medium">Doctor</p>
+                <p className="text-sm font-medium">{t("prescriptions.doctor")}</p>
                 <select
                   className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm shadow-sm outline-none focus:border-primary"
                   value={doctorId}
                   disabled={isDoctorUser}
                   onChange={(e) => setDoctorId(e.target.value)}
                 >
-                  <option value="">{isDoctorUser ? "Connected doctor" : "Select doctor"}</option>
+                  <option value="">{isDoctorUser ? t("prescriptions.connectedDoctor") : t("prescriptions.selectDoctor")}</option>
                   {selectableDoctors.map((doctor) => (
                     <option key={doctor.doctor_id} value={doctor.doctor_id}>
                       {doctor.name || `Doctor ${doctor.doctor_id}`}
@@ -546,18 +507,16 @@ export default function PrescriptionsPage() {
                   ))}
                 </select>
                 {isDoctorUser && selectableDoctors.length === 0 ? (
-                  <p className="text-xs text-destructive">
-                    No active doctor profile is linked to this account yet.
-                  </p>
+                  <p className="text-xs text-destructive">{t("prescriptions.noDoctorProfile")}</p>
                 ) : null}
               </div>
             </div>
 
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <p className="font-medium">Prescription lines</p>
+                <p className="font-medium">{t("prescriptions.lines")}</p>
                 <Button type="button" variant="outline" onClick={addLine}>
-                  Add line
+                  {t("prescriptions.addLine")}
                 </Button>
               </div>
 
@@ -568,7 +527,7 @@ export default function PrescriptionsPage() {
                       list={`prescription-product-options-${index}`}
                       value={line.product_id}
                       onChange={(e) => updateLine(index, "product_id", e.target.value)}
-                      placeholder="Product ID"
+                      placeholder={t("common.productId")}
                     />
                     <datalist id={`prescription-product-options-${index}`}>
                       {products.map((product) => (
@@ -579,27 +538,27 @@ export default function PrescriptionsPage() {
                     </datalist>
                     <p className="text-xs text-muted-foreground">
                       {line.product_id.trim()
-                        ? getProductById(line.product_id)?.lib || "Unknown product ID"
-                        : "Type the product ID directly or pick it from suggestions."}
+                        ? getProductById(line.product_id)?.lib || t("prescriptions.unknownProduct")
+                        : t("prescriptions.productHint")}
                     </p>
                   </div>
- 
-                  <Input type="number" step="0.001" value={line.total_qt} onChange={(e) => updateLine(index, "total_qt", e.target.value)} placeholder="Quantity" />
-                  <Input type="number" value={line.days} onChange={(e) => updateLine(index, "days", e.target.value)} placeholder="Days" />
-                  <Input type="number" value={line.dist_number} onChange={(e) => updateLine(index, "dist_number", e.target.value)} placeholder="Distribution count" />
+
+                  <Input type="number" step="0.001" value={line.total_qt} onChange={(e) => updateLine(index, "total_qt", e.target.value)} placeholder={t("common.quantity")} />
+                  <Input type="number" value={line.days} onChange={(e) => updateLine(index, "days", e.target.value)} placeholder={t("prescriptions.days")} />
+                  <Input type="number" value={line.dist_number} onChange={(e) => updateLine(index, "dist_number", e.target.value)} placeholder={t("prescriptions.distributionCount")} />
 
                   <select
                     className="h-9 rounded-md border border-input bg-transparent px-3 text-sm shadow-sm outline-none focus:border-primary"
                     value={line.is_periodic}
                     onChange={(e) => updateLine(index, "is_periodic", e.target.value as "0" | "1")}
                   >
-                    <option value="0">Non periodic</option>
-                    <option value="1">Periodic</option>
+                    <option value="0">{t("prescriptions.nonPeriodic")}</option>
+                    <option value="1">{t("prescriptions.periodic")}</option>
                   </select>
 
-                  <Input value={line.periodicity} onChange={(e) => updateLine(index, "periodicity", e.target.value)} placeholder="Periodicity" />
+                  <Input value={line.periodicity} onChange={(e) => updateLine(index, "periodicity", e.target.value)} placeholder={t("prescriptions.periodicity")} />
                   <div className="flex gap-2">
-                    <Input value={line.posologie} onChange={(e) => updateLine(index, "posologie", e.target.value)} placeholder="Dosage instructions" />
+                    <Input value={line.posologie} onChange={(e) => updateLine(index, "posologie", e.target.value)} placeholder={t("prescriptions.posologie")} />
                     <Button type="button" variant="outline" onClick={() => removeLine(index)} disabled={lines.length === 1}>
                       X
                     </Button>
@@ -609,46 +568,42 @@ export default function PrescriptionsPage() {
             </div>
 
             <Button type="submit" disabled={submitting}>
-              {submitting ? "Creating..." : "Create prescription"}
+              {submitting ? t("prescriptions.creating") : t("prescriptions.create")}
             </Button>
           </form>
         ) : (
-          <p className="mt-4 text-sm text-muted-foreground">Only authorized prescription roles can create prescriptions.</p>
+          <p className="mt-4 text-sm text-muted-foreground">{t("prescriptions.authorizedOnly")}</p>
         )}
 
-        {error && <p className="mt-4 text-sm text-destructive whitespace-pre-line">{error}</p>}
+        {error && <p className="mt-4 whitespace-pre-line text-sm text-destructive">{error}</p>}
       </div>
 
       <div className="rounded-xl border bg-white p-5 shadow-sm">
-        <h3 className="text-base font-semibold">Existing prescriptions</h3>
+        <h3 className="text-base font-semibold">{t("prescriptions.historyTitle")}</h3>
         <form className="mt-4 flex flex-col gap-3 sm:flex-row" onSubmit={onSearchSubmit}>
           <Input
             value={prescriptionSearch}
             onChange={(e) => setPrescriptionSearch(e.target.value)}
-            placeholder="Search by prescription number"
+            placeholder={t("prescriptions.searchPlaceholder")}
             className="sm:max-w-md"
           />
           <div className="flex gap-2">
             <Button type="button" variant="outline" disabled={loading || items.length === 0} onClick={exportCurrentResults}>
-              Export Excel CSV
+              {t("prescriptions.exportCsv")}
             </Button>
             <Button type="submit" variant="outline" disabled={loading}>
-              Search
+              {t("prescriptions.searchAction")}
             </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={clearSearch}
-              disabled={loading && !activePrescriptionSearch}
-            >
-              Reset
+            <Button type="button" variant="ghost" onClick={clearSearch} disabled={loading && !activePrescriptionSearch}>
+              {t("common.reset")}
             </Button>
           </div>
         </form>
+
         {loading ? (
           <p className="mt-4 text-sm text-muted-foreground">{t("common.loading")}</p>
         ) : items.length === 0 ? (
-          <EmptyState className="mt-4 border-0 bg-muted/20 shadow-none" description="No prescriptions found for the current search." />
+          <EmptyState className="mt-4 border-0 bg-muted/20 shadow-none" description={t("prescriptions.noneFound")} />
         ) : (
           <>
             <div className="mt-4 overflow-x-auto">
@@ -656,23 +611,23 @@ export default function PrescriptionsPage() {
                 <thead className="bg-muted/50">
                   <tr className="text-left">
                     <th className="px-4 py-3 font-semibold">ID</th>
-                    <th className="px-4 py-3 font-semibold">Number</th>
-                    <th className="px-4 py-3 font-semibold">Date</th>
-                    <th className="px-4 py-3 font-semibold">Doctor</th>
-                    <th className="px-4 py-3 font-semibold">Type</th>
-                    <th className="px-4 py-3 font-semibold">Lines</th>
+                    <th className="px-4 py-3 font-semibold">{t("common.number")}</th>
+                    <th className="px-4 py-3 font-semibold">{t("common.date")}</th>
+                    <th className="px-4 py-3 font-semibold">{t("prescriptions.doctorColumn")}</th>
+                    <th className="px-4 py-3 font-semibold">{t("prescriptions.type")}</th>
+                    <th className="px-4 py-3 font-semibold">{t("common.lines")}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {items.map((item) => (
                     <tr key={item.prescription_id} className="border-t hover:bg-gray-50">
                       <td className="px-4 py-3">{item.prescription_id}</td>
-                      <td className="px-4 py-3">{item.prescription_number || "Not available"}</td>
+                      <td className="px-4 py-3">{item.prescription_number || t("common.notAvailable")}</td>
                       <td className="px-4 py-3">
-                        {item.prescription_date ? new Date(item.prescription_date).toLocaleString() : "-"}
+                        {item.prescription_date ? new Date(item.prescription_date).toLocaleString() : t("common.notAvailable")}
                       </td>
-                      <td className="px-4 py-3">{item.doctor_name || item.doctor_id || "Not available"}</td>
-                      <td className="px-4 py-3">{item.type || "Not available"}</td>
+                      <td className="px-4 py-3">{item.doctor_name || item.doctor_id || t("common.notAvailable")}</td>
+                      <td className="px-4 py-3">{item.type || t("common.notAvailable")}</td>
                       <td className="px-4 py-3">{item.lines.length}</td>
                     </tr>
                   ))}

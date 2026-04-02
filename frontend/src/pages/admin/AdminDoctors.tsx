@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Input } from "@/components/ui/input";
 import { Pagination } from "@/components/ui/Pagination";
+import { useLanguage } from "@/i18n/LanguageContext";
 import { createDefaultPagination } from "@/lib/pagination";
 import { ROLES } from "@/lib/roles";
 import type { Doctor } from "@/types/doctors";
@@ -75,6 +76,7 @@ function DoctorStat({
 }
 
 export default function AdminDoctors() {
+  const { t } = useLanguage();
   const [items, setItems] = useState<Doctor[]>([]);
   const [doctorAccounts, setDoctorAccounts] = useState<AdminUser[]>([]);
   const [pagination, setPagination] = useState<PaginationMeta>(createDefaultPagination());
@@ -83,11 +85,9 @@ export default function AdminDoctors() {
   const [savingAccount, setSavingAccount] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-
   const [search, setSearch] = useState("");
   const [specialtyFilter, setSpecialtyFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState<"ALL" | "1" | "0">("ALL");
-
   const [createForm, setCreateForm] = useState<DoctorForm>(emptyDoctorForm);
   const [accountForm, setAccountForm] = useState<DoctorAccountForm>(emptyDoctorAccountForm);
   const [editingDoctorId, setEditingDoctorId] = useState<number | null>(null);
@@ -119,9 +119,7 @@ export default function AdminDoctors() {
         setError(null);
         await loadWorkspace(1, pagination.pageSize);
       } catch (err: any) {
-        if (active) {
-          setError(err?.response?.data?.message || "Failed to load the doctors workspace.");
-        }
+        if (active) setError(err?.response?.data?.message || t("adminDoctors.workspaceLoadFailed"));
       } finally {
         if (active) setLoading(false);
       }
@@ -130,18 +128,17 @@ export default function AdminDoctors() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [t]);
 
   const activeCount = useMemo(() => items.filter((item) => item.actived === 1).length, [items]);
-
   const profileNames = useMemo(() => new Set(items.map((item) => normalizeName(item.name))), [items]);
-
-  const linkedAccountCount = useMemo(() => {
-    return doctorAccounts.filter((account) =>
-      profileNames.has(normalizeName(`${account.firstname} ${account.lastname}`))
-    ).length;
-  }, [doctorAccounts, profileNames]);
-
+  const linkedAccountCount = useMemo(
+    () =>
+      doctorAccounts.filter((account) =>
+        profileNames.has(normalizeName(`${account.firstname} ${account.lastname}`))
+      ).length,
+    [doctorAccounts, profileNames]
+  );
   const unlinkedAccountCount = doctorAccounts.length - linkedAccountCount;
 
   const applyFilters = async () => {
@@ -150,7 +147,7 @@ export default function AdminDoctors() {
       setError(null);
       await loadWorkspace(1, pagination.pageSize);
     } catch (err: any) {
-      setError(err?.response?.data?.message || "Failed to apply filters.");
+      setError(err?.response?.data?.message || t("adminDoctors.applyFailed"));
     } finally {
       setLoading(false);
     }
@@ -173,7 +170,7 @@ export default function AdminDoctors() {
       setPagination(doctorsResponse.pagination);
       setDoctorAccounts(usersResponse.items.filter((item) => item.roles.includes(ROLES.MEDECIN)));
     } catch (err: any) {
-      setError(err?.response?.data?.message || "Failed to reset filters.");
+      setError(err?.response?.data?.message || t("adminDoctors.resetFailed"));
     } finally {
       setLoading(false);
     }
@@ -185,7 +182,7 @@ export default function AdminDoctors() {
     setSuccess(null);
 
     if (!createForm.name.trim()) {
-      setError("Doctor profile name is required.");
+      setError(t("adminDoctors.nameRequired"));
       return;
     }
 
@@ -199,10 +196,10 @@ export default function AdminDoctors() {
       });
 
       setCreateForm(emptyDoctorForm);
-      setSuccess("Doctor profile created successfully.");
+      setSuccess(t("adminDoctors.createProfileSuccess"));
       await loadWorkspace(1, pagination.pageSize);
     } catch (err: any) {
-      setError(err?.response?.data?.message || "Failed to create doctor profile.");
+      setError(err?.response?.data?.message || t("adminDoctors.createProfileFailed"));
     } finally {
       setSavingProfile(false);
     }
@@ -220,7 +217,7 @@ export default function AdminDoctors() {
       !accountForm.username.trim() ||
       !accountForm.password.trim()
     ) {
-      setError("Fill in all account fields before creating a doctor login.");
+      setError(t("adminDoctors.accountFieldsRequired"));
       return;
     }
 
@@ -235,10 +232,10 @@ export default function AdminDoctors() {
       });
 
       setAccountForm(emptyDoctorAccountForm);
-      setSuccess("Doctor login account created successfully. A matching doctor profile was ensured automatically.");
+      setSuccess(t("adminDoctors.createAccountSuccess"));
       await loadWorkspace(pagination.page, pagination.pageSize);
     } catch (err: any) {
-      setError(err?.response?.data?.message || "Failed to create doctor login account.");
+      setError(err?.response?.data?.message || t("adminDoctors.createAccountFailed"));
     } finally {
       setSavingAccount(false);
     }
@@ -264,7 +261,7 @@ export default function AdminDoctors() {
     setSuccess(null);
 
     if (!editForm.name.trim()) {
-      setError("Doctor profile name is required.");
+      setError(t("adminDoctors.nameRequired"));
       return;
     }
 
@@ -279,10 +276,10 @@ export default function AdminDoctors() {
       });
 
       cancelEdit();
-      setSuccess("Doctor profile updated successfully.");
+      setSuccess(t("adminDoctors.updateProfileSuccess"));
       await loadWorkspace(pagination.page, pagination.pageSize);
     } catch (err: any) {
-      setError(err?.response?.data?.message || "Failed to update doctor profile.");
+      setError(err?.response?.data?.message || t("adminDoctors.updateProfileFailed"));
     } finally {
       setSavingProfile(false);
     }
@@ -295,12 +292,10 @@ export default function AdminDoctors() {
     try {
       setSavingProfile(true);
       const updated = await toggleDoctorActive(doctor.doctor_id);
-      setItems((current) =>
-        current.map((item) => (item.doctor_id === updated.doctor_id ? updated : item))
-      );
-      setSuccess(updated.actived === 1 ? "Doctor profile activated." : "Doctor profile deactivated.");
+      setItems((current) => current.map((item) => (item.doctor_id === updated.doctor_id ? updated : item)));
+      setSuccess(updated.actived === 1 ? t("adminDoctors.activateSuccess") : t("adminDoctors.deactivateSuccess"));
     } catch (err: any) {
-      setError(err?.response?.data?.message || "Failed to change doctor profile status.");
+      setError(err?.response?.data?.message || t("adminDoctors.toggleFailed"));
     } finally {
       setSavingProfile(false);
     }
@@ -312,7 +307,7 @@ export default function AdminDoctors() {
       setError(null);
       await loadWorkspace(page, pageSize);
     } catch (err: any) {
-      setError(err?.response?.data?.message || "Failed to load doctors.");
+      setError(err?.response?.data?.message || t("adminDoctors.loadFailed"));
     } finally {
       setLoading(false);
     }
@@ -323,139 +318,90 @@ export default function AdminDoctors() {
       <section className="rounded-xl border bg-white p-6 shadow-sm">
         <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
           <div className="space-y-3">
-            <p className="text-sm font-medium uppercase tracking-[0.2em] text-primary">Admin workspace</p>
-            <h2 className="text-3xl font-semibold tracking-tight">Doctors management</h2>
-            <p className="max-w-2xl text-sm leading-6 text-muted-foreground">
-              This space is designed for onboarding. First create or verify the doctor profile, then create the
-              login account. The account creation flow now also ensures the matching doctor profile exists, so new
-              doctors can access prescriptions more reliably.
-            </p>
+            <p className="text-sm font-medium uppercase tracking-[0.2em] text-primary">{t("adminDoctors.badge")}</p>
+            <h2 className="text-3xl font-semibold tracking-tight">{t("adminDoctors.title")}</h2>
+            <p className="max-w-2xl text-sm leading-6 text-muted-foreground">{t("adminDoctors.subtitle")}</p>
           </div>
 
           <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
-            <p className="text-sm font-semibold text-slate-900">Recommended admin flow</p>
+            <p className="text-sm font-semibold text-slate-900">{t("adminDoctors.workflowTitle")}</p>
             <ol className="mt-3 space-y-3 text-sm text-slate-600">
-              <li>1. Create a doctor profile if the person is new in the operational master data.</li>
-              <li>2. Create the doctor login account with the same first and last name.</li>
-              <li>3. Confirm the doctor appears in the account list and the profile list below.</li>
+              <li>1. {t("adminDoctors.workflow.one")}</li>
+              <li>2. {t("adminDoctors.workflow.two")}</li>
+              <li>3. {t("adminDoctors.workflow.three")}</li>
             </ol>
           </div>
         </div>
       </section>
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <DoctorStat label="Profiles on this page" value={items.length} />
-        <DoctorStat label="Active profiles" value={activeCount} tone="emerald" />
-        <DoctorStat label="Doctor login accounts" value={doctorAccounts.length} tone="blue" />
-        <DoctorStat label="Accounts without visible profile" value={unlinkedAccountCount} tone="amber" />
+        <DoctorStat label={t("adminDoctors.stats.profilesPage")} value={items.length} />
+        <DoctorStat label={t("adminDoctors.stats.activeProfiles")} value={activeCount} tone="emerald" />
+        <DoctorStat label={t("adminDoctors.stats.loginAccounts")} value={doctorAccounts.length} tone="blue" />
+        <DoctorStat label={t("adminDoctors.stats.unlinkedAccounts")} value={unlinkedAccountCount} tone="amber" />
       </section>
 
       <section className="grid gap-6 xl:grid-cols-2">
         <div className="rounded-xl border bg-white p-5 shadow-sm">
-          <h3 className="text-lg font-semibold">Create doctor profile</h3>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Use this when you need to add or maintain the operational doctor master data.
-          </p>
+          <h3 className="text-lg font-semibold">{t("adminDoctors.createProfile")}</h3>
+          <p className="mt-1 text-sm text-muted-foreground">{t("adminDoctors.createProfileBody")}</p>
 
           <form onSubmit={submitCreateProfile} className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="space-y-2 md:col-span-2">
-              <p className="text-sm font-medium">Doctor full name</p>
-              <Input
-                value={createForm.name}
-                onChange={(e) => setCreateForm((prev) => ({ ...prev, name: e.target.value }))}
-                placeholder="Dr. John Doe"
-              />
+              <p className="text-sm font-medium">{t("adminDoctors.fullName")}</p>
+              <Input value={createForm.name} onChange={(e) => setCreateForm((prev) => ({ ...prev, name: e.target.value }))} placeholder={t("adminDoctors.fullNamePlaceholder")} />
             </div>
             <div className="space-y-2">
-              <p className="text-sm font-medium">Specialty</p>
-              <Input
-                value={createForm.specialty}
-                onChange={(e) => setCreateForm((prev) => ({ ...prev, specialty: e.target.value }))}
-                placeholder="General medicine"
-              />
+              <p className="text-sm font-medium">{t("common.specialty")}</p>
+              <Input value={createForm.specialty} onChange={(e) => setCreateForm((prev) => ({ ...prev, specialty: e.target.value }))} placeholder={t("adminDoctors.specialtyPlaceholder")} />
             </div>
             <div className="space-y-2">
-              <p className="text-sm font-medium">Phone</p>
-              <Input
-                type="number"
-                value={createForm.tel}
-                onChange={(e) => setCreateForm((prev) => ({ ...prev, tel: e.target.value }))}
-                placeholder="55123456"
-              />
+              <p className="text-sm font-medium">{t("common.phone")}</p>
+              <Input type="number" value={createForm.tel} onChange={(e) => setCreateForm((prev) => ({ ...prev, tel: e.target.value }))} placeholder={t("adminDoctors.phonePlaceholder")} />
             </div>
             <div className="space-y-2 md:col-span-2">
-              <p className="text-sm font-medium">Address</p>
-              <Input
-                value={createForm.address}
-                onChange={(e) => setCreateForm((prev) => ({ ...prev, address: e.target.value }))}
-                placeholder="Clinic or office address"
-              />
+              <p className="text-sm font-medium">{t("common.address")}</p>
+              <Input value={createForm.address} onChange={(e) => setCreateForm((prev) => ({ ...prev, address: e.target.value }))} placeholder={t("adminDoctors.addressPlaceholder")} />
             </div>
             <div className="md:col-span-2 flex justify-end">
               <Button type="submit" disabled={savingProfile}>
-                {savingProfile ? "Saving profile..." : "Create doctor profile"}
+                {savingProfile ? t("adminDoctors.savingProfile") : t("adminDoctors.createProfileAction")}
               </Button>
             </div>
           </form>
         </div>
 
         <div className="rounded-xl border bg-white p-5 shadow-sm">
-          <h3 className="text-lg font-semibold">Create doctor login account</h3>
-          <p className="mt-1 text-sm text-muted-foreground">
-            This creates the application account with the doctor role. Keep the name aligned with the profile for
-            a cleaner onboarding flow.
-          </p>
+          <h3 className="text-lg font-semibold">{t("adminDoctors.createAccount")}</h3>
+          <p className="mt-1 text-sm text-muted-foreground">{t("adminDoctors.createAccountBody")}</p>
 
           <form onSubmit={submitCreateAccount} className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="space-y-2">
-              <p className="text-sm font-medium">First name</p>
-              <Input
-                value={accountForm.firstname}
-                onChange={(e) => setAccountForm((prev) => ({ ...prev, firstname: e.target.value }))}
-                placeholder="John"
-              />
+              <p className="text-sm font-medium">{t("auth.firstName")}</p>
+              <Input value={accountForm.firstname} onChange={(e) => setAccountForm((prev) => ({ ...prev, firstname: e.target.value }))} placeholder="John" />
             </div>
             <div className="space-y-2">
-              <p className="text-sm font-medium">Last name</p>
-              <Input
-                value={accountForm.lastname}
-                onChange={(e) => setAccountForm((prev) => ({ ...prev, lastname: e.target.value }))}
-                placeholder="Doe"
-              />
+              <p className="text-sm font-medium">{t("auth.lastName")}</p>
+              <Input value={accountForm.lastname} onChange={(e) => setAccountForm((prev) => ({ ...prev, lastname: e.target.value }))} placeholder="Doe" />
             </div>
             <div className="space-y-2">
-              <p className="text-sm font-medium">Email</p>
-              <Input
-                type="email"
-                value={accountForm.email}
-                onChange={(e) => setAccountForm((prev) => ({ ...prev, email: e.target.value }))}
-                placeholder="doctor@company.tn"
-              />
+              <p className="text-sm font-medium">{t("common.emailLabel")}</p>
+              <Input type="email" value={accountForm.email} onChange={(e) => setAccountForm((prev) => ({ ...prev, email: e.target.value }))} placeholder="doctor@company.tn" />
             </div>
             <div className="space-y-2">
-              <p className="text-sm font-medium">Username</p>
-              <Input
-                value={accountForm.username}
-                onChange={(e) => setAccountForm((prev) => ({ ...prev, username: e.target.value }))}
-                placeholder="john.doe"
-              />
+              <p className="text-sm font-medium">{t("common.usernameLabel")}</p>
+              <Input value={accountForm.username} onChange={(e) => setAccountForm((prev) => ({ ...prev, username: e.target.value }))} placeholder="john.doe" />
             </div>
             <div className="space-y-2 md:col-span-2">
-              <p className="text-sm font-medium">Temporary password</p>
-              <Input
-                type="password"
-                value={accountForm.password}
-                onChange={(e) => setAccountForm((prev) => ({ ...prev, password: e.target.value }))}
-                placeholder="At least 6 characters"
-              />
+              <p className="text-sm font-medium">{t("adminDoctors.temporaryPassword")}</p>
+              <Input type="password" value={accountForm.password} onChange={(e) => setAccountForm((prev) => ({ ...prev, password: e.target.value }))} placeholder={t("adminDoctors.passwordPlaceholder")} />
             </div>
             <div className="md:col-span-2 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800">
-              Tip: use the same first and last name as the doctor profile above. That keeps the doctor workspace
-              aligned and easier to support.
+              {t("adminDoctors.tip")}
             </div>
             <div className="md:col-span-2 flex justify-end">
               <Button type="submit" disabled={savingAccount}>
-                {savingAccount ? "Creating account..." : "Create doctor account"}
+                {savingAccount ? t("adminDoctors.creatingAccount") : t("adminDoctors.createAccountAction")}
               </Button>
             </div>
           </form>
@@ -471,24 +417,22 @@ export default function AdminDoctors() {
 
       <section className="rounded-xl border bg-white p-5 shadow-sm">
         <div className="flex flex-col gap-2">
-          <h3 className="text-lg font-semibold">Doctor login accounts</h3>
-          <p className="text-sm text-muted-foreground">
-            These are users who already have the doctor role in the platform.
-          </p>
+          <h3 className="text-lg font-semibold">{t("adminDoctors.accountSection")}</h3>
+          <p className="text-sm text-muted-foreground">{t("adminDoctors.accountSectionBody")}</p>
         </div>
 
         {doctorAccounts.length === 0 ? (
-          <EmptyState className="mt-4 border-0 bg-muted/20 shadow-none" description="No doctor login accounts found yet." />
+          <EmptyState className="mt-4 border-0 bg-muted/20 shadow-none" description={t("adminDoctors.noAccounts")} />
         ) : (
           <div className="mt-4 overflow-x-auto">
             <table className="w-full table-auto border-collapse text-sm">
               <thead className="bg-muted/50">
                 <tr className="text-left">
-                  <th className="px-4 py-3 font-semibold">Name</th>
-                  <th className="px-4 py-3 font-semibold">Username</th>
-                  <th className="px-4 py-3 font-semibold">Email</th>
-                  <th className="px-4 py-3 font-semibold">Function</th>
-                  <th className="px-4 py-3 font-semibold">Profile link</th>
+                  <th className="px-4 py-3 font-semibold">{t("common.name")}</th>
+                  <th className="px-4 py-3 font-semibold">{t("common.usernameLabel")}</th>
+                  <th className="px-4 py-3 font-semibold">{t("common.emailLabel")}</th>
+                  <th className="px-4 py-3 font-semibold">{t("common.functionLabel")}</th>
+                  <th className="px-4 py-3 font-semibold">{t("adminDoctors.profileLink")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -497,19 +441,13 @@ export default function AdminDoctors() {
 
                   return (
                     <tr key={account.id} className="border-t hover:bg-gray-50">
-                      <td className="px-4 py-3">{`${account.firstname} ${account.lastname}`.trim() || "Not available"}</td>
+                      <td className="px-4 py-3">{`${account.firstname} ${account.lastname}`.trim() || t("common.notAvailable")}</td>
                       <td className="px-4 py-3">{account.username}</td>
                       <td className="px-4 py-3">{account.email}</td>
-                      <td className="px-4 py-3">{account.functionName || account.function || "Doctor"}</td>
+                      <td className="px-4 py-3">{account.functionName || account.function || t("adminDoctors.doctorFallback")}</td>
                       <td className="px-4 py-3">
-                        <span
-                          className={
-                            linked
-                              ? "rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700"
-                              : "rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-700"
-                          }
-                        >
-                          {linked ? "Profile visible" : "Profile not on current page"}
+                        <span className={linked ? "rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700" : "rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-700"}>
+                          {linked ? t("adminDoctors.profileVisible") : t("adminDoctors.profileNotVisible")}
                         </span>
                       </td>
                     </tr>
@@ -524,40 +462,24 @@ export default function AdminDoctors() {
       <section className="rounded-xl border bg-white p-5 shadow-sm">
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
           <div className="space-y-2">
-            <p className="text-sm font-medium">Search</p>
-            <Input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Name, specialty, address or phone"
-            />
+            <p className="text-sm font-medium">{t("common.search")}</p>
+            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={t("adminDoctors.searchPlaceholder")} />
           </div>
           <div className="space-y-2">
-            <p className="text-sm font-medium">Specialty</p>
-            <Input
-              value={specialtyFilter}
-              onChange={(e) => setSpecialtyFilter(e.target.value)}
-              placeholder="Ex: cardiology"
-            />
+            <p className="text-sm font-medium">{t("common.specialty")}</p>
+            <Input value={specialtyFilter} onChange={(e) => setSpecialtyFilter(e.target.value)} placeholder={t("adminDoctors.specialtySearchPlaceholder")} />
           </div>
           <div className="space-y-2">
-            <p className="text-sm font-medium">Status</p>
-            <select
-              className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm shadow-sm outline-none focus:border-primary"
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as "ALL" | "1" | "0")}
-            >
-              <option value="ALL">All profiles</option>
-              <option value="1">Active only</option>
-              <option value="0">Inactive only</option>
+            <p className="text-sm font-medium">{t("common.status")}</p>
+            <select className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm shadow-sm outline-none focus:border-primary" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as "ALL" | "1" | "0")}>
+              <option value="ALL">{t("adminDoctors.allProfiles")}</option>
+              <option value="1">{t("adminDoctors.activeOnly")}</option>
+              <option value="0">{t("adminDoctors.inactiveOnly")}</option>
             </select>
           </div>
           <div className="flex items-end justify-end gap-2">
-            <Button variant="outline" className="w-full lg:w-auto" onClick={resetFilters}>
-              Reset
-            </Button>
-            <Button className="w-full lg:w-auto" onClick={applyFilters}>
-              Apply
-            </Button>
+            <Button variant="outline" className="w-full lg:w-auto" onClick={resetFilters}>{t("common.reset")}</Button>
+            <Button className="w-full lg:w-auto" onClick={applyFilters}>{t("common.apply")}</Button>
           </div>
         </div>
       </section>
@@ -565,32 +487,30 @@ export default function AdminDoctors() {
       <section className="rounded-xl border bg-white p-5 shadow-sm">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <h3 className="text-lg font-semibold">Doctor profiles</h3>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Review operational doctor records and keep their status up to date.
-            </p>
+            <h3 className="text-lg font-semibold">{t("adminDoctors.profileSection")}</h3>
+            <p className="mt-1 text-sm text-muted-foreground">{t("adminDoctors.profileSectionBody")}</p>
           </div>
           <div className="rounded-full bg-muted px-3 py-1 text-sm text-muted-foreground">
-            Active on this page: {activeCount} / {items.length}
+            {t("adminDoctors.activeSummary")}: {activeCount} / {items.length}
           </div>
         </div>
 
         {loading ? (
-          <p className="mt-4 text-sm text-muted-foreground">Loading doctors...</p>
+          <p className="mt-4 text-sm text-muted-foreground">{t("adminDoctors.loading")}</p>
         ) : items.length === 0 ? (
-          <EmptyState className="mt-4 border-0 bg-muted/20 shadow-none" description="No doctor profiles found with the current filters." />
+          <EmptyState className="mt-4 border-0 bg-muted/20 shadow-none" description={t("adminDoctors.noneFound")} />
         ) : (
           <div className="mt-4 overflow-x-auto">
             <table className="w-full table-auto border-collapse text-sm">
               <thead className="bg-muted/50">
                 <tr className="text-left">
                   <th className="px-4 py-3 font-semibold">ID</th>
-                  <th className="px-4 py-3 font-semibold">Name</th>
-                  <th className="px-4 py-3 font-semibold">Specialty</th>
-                  <th className="px-4 py-3 font-semibold">Address</th>
-                  <th className="px-4 py-3 font-semibold">Phone</th>
-                  <th className="px-4 py-3 font-semibold">Status</th>
-                  <th className="px-4 py-3 font-semibold">Actions</th>
+                  <th className="px-4 py-3 font-semibold">{t("common.name")}</th>
+                  <th className="px-4 py-3 font-semibold">{t("common.specialty")}</th>
+                  <th className="px-4 py-3 font-semibold">{t("common.address")}</th>
+                  <th className="px-4 py-3 font-semibold">{t("common.phone")}</th>
+                  <th className="px-4 py-3 font-semibold">{t("common.status")}</th>
+                  <th className="px-4 py-3 font-semibold">{t("common.actions")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -600,81 +520,27 @@ export default function AdminDoctors() {
                   return (
                     <tr key={doctor.doctor_id} className="border-t hover:bg-gray-50">
                       <td className="px-4 py-3">{doctor.doctor_id}</td>
+                      <td className="px-4 py-3">{isEditing ? <Input value={editForm.name} onChange={(e) => setEditForm((prev) => ({ ...prev, name: e.target.value }))} /> : doctor.name || t("common.notAvailable")}</td>
+                      <td className="px-4 py-3">{isEditing ? <Input value={editForm.specialty} onChange={(e) => setEditForm((prev) => ({ ...prev, specialty: e.target.value }))} /> : doctor.specialty || t("common.notAvailable")}</td>
+                      <td className="px-4 py-3">{isEditing ? <Input value={editForm.address} onChange={(e) => setEditForm((prev) => ({ ...prev, address: e.target.value }))} /> : doctor.address || t("common.notAvailable")}</td>
+                      <td className="px-4 py-3">{isEditing ? <Input type="number" value={editForm.tel} onChange={(e) => setEditForm((prev) => ({ ...prev, tel: e.target.value }))} /> : doctor.tel || t("common.notAvailable")}</td>
                       <td className="px-4 py-3">
-                        {isEditing ? (
-                          <Input
-                            value={editForm.name}
-                            onChange={(e) => setEditForm((prev) => ({ ...prev, name: e.target.value }))}
-                          />
-                        ) : (
-                          doctor.name || "Not available"
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        {isEditing ? (
-                          <Input
-                            value={editForm.specialty}
-                            onChange={(e) => setEditForm((prev) => ({ ...prev, specialty: e.target.value }))}
-                          />
-                        ) : (
-                          doctor.specialty || "Not available"
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        {isEditing ? (
-                          <Input
-                            value={editForm.address}
-                            onChange={(e) => setEditForm((prev) => ({ ...prev, address: e.target.value }))}
-                          />
-                        ) : (
-                          doctor.address || "Not available"
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        {isEditing ? (
-                          <Input
-                            type="number"
-                            value={editForm.tel}
-                            onChange={(e) => setEditForm((prev) => ({ ...prev, tel: e.target.value }))}
-                          />
-                        ) : (
-                          doctor.tel || "Not available"
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span
-                          className={
-                            doctor.actived === 1
-                              ? "rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700"
-                              : "rounded-full bg-slate-200 px-2.5 py-1 text-xs font-medium text-slate-700"
-                          }
-                        >
-                          {doctor.actived === 1 ? "Active" : "Inactive"}
+                        <span className={doctor.actived === 1 ? "rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700" : "rounded-full bg-slate-200 px-2.5 py-1 text-xs font-medium text-slate-700"}>
+                          {doctor.actived === 1 ? t("common.active") : t("common.inactive")}
                         </span>
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex flex-wrap gap-2">
                           {isEditing ? (
                             <>
-                              <Button size="sm" onClick={() => saveEdit(doctor)} disabled={savingProfile}>
-                                Save
-                              </Button>
-                              <Button size="sm" variant="outline" onClick={cancelEdit} disabled={savingProfile}>
-                                Cancel
-                              </Button>
+                              <Button size="sm" onClick={() => saveEdit(doctor)} disabled={savingProfile}>{t("common.save")}</Button>
+                              <Button size="sm" variant="outline" onClick={cancelEdit} disabled={savingProfile}>{t("common.cancel")}</Button>
                             </>
                           ) : (
                             <>
-                              <Button size="sm" variant="outline" onClick={() => startEdit(doctor)} disabled={savingProfile}>
-                                Edit
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => toggleActive(doctor)}
-                                disabled={savingProfile}
-                              >
-                                {doctor.actived === 1 ? "Deactivate" : "Activate"}
+                              <Button size="sm" variant="outline" onClick={() => startEdit(doctor)} disabled={savingProfile}>{t("common.edit")}</Button>
+                              <Button size="sm" variant="outline" onClick={() => toggleActive(doctor)} disabled={savingProfile}>
+                                {doctor.actived === 1 ? t("common.deactivate") : t("common.activate")}
                               </Button>
                             </>
                           )}
