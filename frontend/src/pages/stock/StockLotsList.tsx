@@ -82,15 +82,15 @@ export default function StockLotsList() {
         <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
           <div className="col-span-2 space-y-2 md:col-span-1">
             <p className="text-sm font-medium">{t("common.productId")}</p>
-            <Input value={productId} onChange={(e) => setProductId(e.target.value)} placeholder="e.g. 92114" />
+            <Input value={productId} onChange={(e) => setProductId(e.target.value)} placeholder={t("stock.productPlaceholder")} />
           </div>
           <div className="col-span-2 space-y-2 md:col-span-1">
             <p className="text-sm font-medium">{t("common.locationId")}</p>
-            <Input value={emplacementId} onChange={(e) => setEmplacementId(e.target.value)} placeholder="e.g. 1" />
+            <Input value={emplacementId} onChange={(e) => setEmplacementId(e.target.value)} placeholder={t("stock.locationPlaceholder")} />
           </div>
           <div className="col-span-2 space-y-2 md:col-span-1">
             <p className="text-sm font-medium">{t("stockLots.lotId")}</p>
-            <Input value={lotId} onChange={(e) => setLotId(e.target.value)} placeholder="e.g. 3949707" />
+            <Input value={lotId} onChange={(e) => setLotId(e.target.value)} placeholder={t("stockLots.lotPlaceholder")} />
           </div>
         </div>
         <div className="mt-4 flex justify-end gap-3">

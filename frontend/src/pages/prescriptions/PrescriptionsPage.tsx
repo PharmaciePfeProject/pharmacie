@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Check, ChevronDown, Search } from "lucide-react";
 import {
   createPrescription,
   fetchPrescriptionAgents,
@@ -49,6 +50,145 @@ function normalizeCsvValue(value: unknown) {
   return `"${text}"`;
 }
 
+type PickerOption = {
+  value: string;
+  label: string;
+  description?: string;
+};
+
+function PickerField({
+  value,
+  onChange,
+  options,
+  placeholder,
+  disabled = false,
+  searchPlaceholder,
+  compact = false,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  options: PickerOption[];
+  placeholder: string;
+  disabled?: boolean;
+  searchPlaceholder?: string;
+  compact?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+
+  const selected = options.find((option) => option.value === value) || null;
+  const filtered = useMemo(() => {
+    const normalized = query.trim().toLowerCase();
+    if (!normalized) return options.slice(0, 10);
+
+    return options
+      .filter((option) =>
+        [option.value, option.label, option.description]
+          .filter(Boolean)
+          .some((entry) => entry!.toLowerCase().includes(normalized))
+      )
+      .slice(0, 10);
+  }, [options, query]);
+
+  const handleSelect = (nextValue: string) => {
+    onChange(nextValue);
+    setOpen(false);
+    setQuery("");
+  };
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => {
+          if (disabled) return;
+          setOpen((current) => !current);
+        }}
+        className={`flex w-full items-center justify-between rounded-2xl border border-slate-200 bg-white px-3 text-left shadow-sm transition hover:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:bg-muted/30 ${
+          compact ? "h-11" : "min-h-[56px] py-2"
+        }`}
+      >
+        <div className="min-w-0">
+          {selected ? (
+            <div className="min-w-0">
+              {compact ? (
+                <div className="truncate text-sm text-slate-900">
+                  <span className="font-medium">{selected.value}</span>
+                  {selected.label && selected.label !== selected.value ? (
+                    <span className="ml-2 text-muted-foreground">{selected.label}</span>
+                  ) : null}
+                </div>
+              ) : (
+                <>
+                  <div className="truncate text-sm font-medium text-slate-900">{selected.value}</div>
+                  <div className="truncate text-xs text-muted-foreground">{selected.label}</div>
+                </>
+              )}
+            </div>
+          ) : (
+            <span className="text-sm text-muted-foreground">{placeholder}</span>
+          )}
+        </div>
+        <ChevronDown className={`h-4 w-4 shrink-0 text-muted-foreground transition ${open ? "rotate-180" : ""}`} />
+      </button>
+
+      {open ? (
+        <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-30 overflow-hidden rounded-2xl border border-emerald-200 bg-white shadow-xl">
+          <div className="border-b border-emerald-100 bg-emerald-50/70 p-3">
+            <div className="flex items-center gap-2 rounded-xl border border-emerald-100 bg-white px-3">
+              <Search className="h-4 w-4 text-muted-foreground" />
+              <input
+                autoFocus
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder={searchPlaceholder || placeholder}
+                className="h-10 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+              />
+            </div>
+          </div>
+
+          <div className="max-h-72 overflow-y-auto p-2">
+            {filtered.length === 0 ? (
+              <div className="rounded-xl px-3 py-6 text-center text-sm text-muted-foreground">
+                No matching options
+              </div>
+            ) : (
+              filtered.map((option) => {
+                const active = option.value === value;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onMouseDown={(event) => event.preventDefault()}
+                    onClick={() => handleSelect(option.value)}
+                    className={`flex w-full items-start justify-between gap-3 rounded-xl px-3 py-3 text-left transition ${
+                      active ? "bg-primary/10 text-primary" : "hover:bg-emerald-50/60"
+                    }`}
+                  >
+                    <div className="min-w-0">
+                      <div className="font-medium">{option.value}</div>
+                      <div className="text-sm text-muted-foreground">{option.label}</div>
+                      {option.description ? (
+                        <div className="text-xs text-muted-foreground">{option.description}</div>
+                      ) : null}
+                    </div>
+                    {active ? <Check className="mt-0.5 h-4 w-4 shrink-0" /> : null}
+                  </button>
+                );
+              })
+            )}
+          </div>
+
+          <div className="border-t border-emerald-100 bg-slate-50/70 px-3 py-2 text-xs text-muted-foreground">
+            Type to filter, then choose the correct record.
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export default function PrescriptionsPage() {
   const { user } = useAuth();
   const { t } = useLanguage();
@@ -90,6 +230,31 @@ export default function PrescriptionsPage() {
   const selectedAgent = useMemo(
     () => agents.find((agent) => String(agent.agent_id) === agentId.trim()) || null,
     [agentId, agents]
+  );
+  const agentOptions = useMemo<PickerOption[]>(
+    () =>
+      agents.map((agent) => ({
+        value: agent.agent_id,
+        label: agent.agent_situation || "Agent",
+        description: agent.agent_situation ? `Situation: ${agent.agent_situation}` : undefined,
+      })),
+    [agents]
+  );
+  const doctorOptions = useMemo<PickerOption[]>(
+    () =>
+      selectableDoctors.map((doctor) => ({
+        value: String(doctor.doctor_id),
+        label: doctor.name || `Doctor ${doctor.doctor_id}`,
+      })),
+    [selectableDoctors]
+  );
+  const typeOptions = useMemo<PickerOption[]>(
+    () =>
+      types.map((entry) => ({
+        value: entry.type,
+        label: entry.type,
+      })),
+    [types]
   );
 
   const agentLookupError = useMemo(() => {
@@ -212,6 +377,15 @@ export default function PrescriptionsPage() {
 
   const getProductById = (value: string) =>
     products.find((product) => String(product.product_id) === value.trim()) || null;
+  const productOptions = useMemo<PickerOption[]>(
+    () =>
+      products.map((product) => ({
+        value: String(product.product_id),
+        label: product.lib || `Product ${product.product_id}`,
+        description: product.bar_code || undefined,
+      })),
+    [products]
+  );
 
   const exportCurrentResults = () => {
     const rows: Array<Array<string | number>> = [
@@ -441,19 +615,14 @@ export default function PrescriptionsPage() {
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-5">
               <div className="space-y-2">
                 <p className="text-sm font-medium">{t("prescriptions.agentId")}</p>
-                <Input
-                  list="prescription-agent-options"
+                <PickerField
                   value={agentId}
-                  onChange={(e) => setAgentId(e.target.value)}
+                  onChange={setAgentId}
+                  options={agentOptions}
                   placeholder={t("prescriptions.agentPlaceholder")}
+                  searchPlaceholder={t("prescriptions.agentPlaceholder")}
+                  compact
                 />
-                <datalist id="prescription-agent-options">
-                  {agents.map((agent) => (
-                    <option key={agent.agent_id} value={agent.agent_id}>
-                      {agent.agent_situation || "Agent"}
-                    </option>
-                  ))}
-                </datalist>
                 <p className="text-xs text-muted-foreground">{t("prescriptions.agentHint")}</p>
                 {agentLookupError ? <p className="text-xs text-destructive">{agentLookupError}</p> : null}
               </div>
@@ -471,18 +640,14 @@ export default function PrescriptionsPage() {
 
               <div className="space-y-2">
                 <p className="text-sm font-medium">{t("prescriptions.type")}</p>
-                <select
-                  className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm shadow-sm outline-none focus:border-primary"
+                <PickerField
                   value={prescriptionType}
-                  onChange={(e) => setPrescriptionType(e.target.value)}
-                >
-                  <option value="">{t("prescriptions.selectType")}</option>
-                  {types.map((entry) => (
-                    <option key={entry.type} value={entry.type}>
-                      {entry.type}
-                    </option>
-                  ))}
-                </select>
+                  onChange={setPrescriptionType}
+                  options={typeOptions}
+                  placeholder={t("prescriptions.selectType")}
+                  searchPlaceholder={t("prescriptions.selectType")}
+                  compact
+                />
               </div>
 
               <div className="space-y-2">
@@ -493,19 +658,15 @@ export default function PrescriptionsPage() {
 
               <div className="space-y-2">
                 <p className="text-sm font-medium">{t("prescriptions.doctor")}</p>
-                <select
-                  className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm shadow-sm outline-none focus:border-primary"
+                <PickerField
                   value={doctorId}
+                  onChange={setDoctorId}
+                  options={doctorOptions}
                   disabled={isDoctorUser}
-                  onChange={(e) => setDoctorId(e.target.value)}
-                >
-                  <option value="">{isDoctorUser ? t("prescriptions.connectedDoctor") : t("prescriptions.selectDoctor")}</option>
-                  {selectableDoctors.map((doctor) => (
-                    <option key={doctor.doctor_id} value={doctor.doctor_id}>
-                      {doctor.name || `Doctor ${doctor.doctor_id}`}
-                    </option>
-                  ))}
-                </select>
+                  placeholder={isDoctorUser ? t("prescriptions.connectedDoctor") : t("prescriptions.selectDoctor")}
+                  searchPlaceholder={t("prescriptions.selectDoctor")}
+                  compact
+                />
                 {isDoctorUser && selectableDoctors.length === 0 ? (
                   <p className="text-xs text-destructive">{t("prescriptions.noDoctorProfile")}</p>
                 ) : null}
@@ -523,19 +684,14 @@ export default function PrescriptionsPage() {
               {lines.map((line, index) => (
                 <div key={index} className="grid grid-cols-1 gap-3 rounded-lg border p-3 md:grid-cols-2 lg:grid-cols-7">
                   <div className="space-y-2">
-                    <Input
-                      list={`prescription-product-options-${index}`}
+                    <PickerField
                       value={line.product_id}
-                      onChange={(e) => updateLine(index, "product_id", e.target.value)}
+                      onChange={(value) => updateLine(index, "product_id", value)}
+                      options={productOptions}
                       placeholder={t("common.productId")}
+                      searchPlaceholder={t("common.productId")}
+                      compact
                     />
-                    <datalist id={`prescription-product-options-${index}`}>
-                      {products.map((product) => (
-                        <option key={product.product_id} value={product.product_id}>
-                          {product.lib || `Product ${product.product_id}`}
-                        </option>
-                      ))}
-                    </datalist>
                     <p className="text-xs text-muted-foreground">
                       {line.product_id.trim()
                         ? getProductById(line.product_id)?.lib || t("prescriptions.unknownProduct")

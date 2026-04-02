@@ -1,5 +1,6 @@
 import { Navigate, Outlet } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
+import { useLanguage } from "@/i18n/LanguageContext";
 import { hasPermission, hasRole, type PermissionKey, type RoleKey } from "@/lib/roles";
 
 type PermissionRouteProps = {
@@ -14,11 +15,12 @@ export default function PermissionRoute({
   redirectTo = "/app/dashboard",
 }: PermissionRouteProps) {
   const { user, isLoading } = useAuth();
+  const { t } = useLanguage();
 
   if (isLoading) {
     return (
       <div className="min-h-screen grid place-items-center bg-background text-foreground">
-        Loading...
+        {t("common.loading")}
       </div>
     );
   }

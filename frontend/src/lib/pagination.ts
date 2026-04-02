@@ -1,7 +1,7 @@
 import type { PaginationMeta } from "@/types/pagination";
 
 export const DEFAULT_PAGE = 1;
-export const DEFAULT_PAGE_SIZE = 20;
+export const DEFAULT_PAGE_SIZE = 10;
 
 export function parsePageParam(value: string | null) {
   const parsed = Number(value);

@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
+import { Boxes, MapPin, PackageSearch } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { fetchStock } from "@/api/stock";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Input } from "@/components/ui/input";
 import { Pagination } from "@/components/ui/Pagination";
@@ -75,15 +77,43 @@ export default function StockList() {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-xl border bg-white p-5 shadow-sm">
+      <Card className="overflow-hidden border-white/70 bg-white/95 shadow-sm">
+        <CardContent className="space-y-5 p-5">
+          <div className="grid gap-4 lg:grid-cols-3">
+            <div className="rounded-2xl border bg-muted/20 p-4">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Boxes className="h-4 w-4 text-primary" />
+                {t("page.stock.title")}
+              </div>
+              <p className="mt-3 text-2xl font-semibold">{pagination.total}</p>
+              <p className="text-sm text-muted-foreground">{t("stock.summary.rows")}</p>
+            </div>
+            <div className="rounded-2xl border bg-muted/20 p-4">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <PackageSearch className="h-4 w-4 text-primary" />
+                {t("common.productId")}
+              </div>
+              <p className="mt-3 text-sm font-medium text-slate-900">{productId || t("common.all")}</p>
+              <p className="text-sm text-muted-foreground">{t("stock.summary.product")}</p>
+            </div>
+            <div className="rounded-2xl border bg-muted/20 p-4">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <MapPin className="h-4 w-4 text-primary" />
+                {t("common.locationId")}
+              </div>
+              <p className="mt-3 text-sm font-medium text-slate-900">{emplacementId || t("common.all")}</p>
+              <p className="text-sm text-muted-foreground">{t("stock.summary.location")}</p>
+            </div>
+          </div>
+
         <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
           <div className="col-span-2 space-y-2 md:col-span-1">
             <p className="text-sm font-medium">{t("common.productId")}</p>
-            <Input value={productId} onChange={(e) => setProductId(e.target.value)} placeholder="e.g. 92114" />
+            <Input value={productId} onChange={(e) => setProductId(e.target.value)} placeholder={t("stock.productPlaceholder")} />
           </div>
           <div className="col-span-2 space-y-2 md:col-span-1">
             <p className="text-sm font-medium">{t("common.locationId")}</p>
-            <Input value={emplacementId} onChange={(e) => setEmplacementId(e.target.value)} placeholder="e.g. 1" />
+            <Input value={emplacementId} onChange={(e) => setEmplacementId(e.target.value)} placeholder={t("stock.locationPlaceholder")} />
           </div>
         </div>
         <div className="mt-4 flex justify-end gap-3">
@@ -102,14 +132,22 @@ export default function StockList() {
             {t("common.apply")}
           </Button>
         </div>
-      </div>
+        </CardContent>
+      </Card>
 
       {loading && <div className="rounded-xl border bg-white p-8 text-center text-muted-foreground shadow-sm">{t("stock.loading")}</div>}
       {error && !loading && <div className="rounded-xl border border-destructive/20 bg-destructive/5 p-6 text-sm text-destructive shadow-sm">{error}</div>}
       {!loading && !error && items.length === 0 && <EmptyState description={t("empty.description")} />}
       {!loading && !error && items.length > 0 && (
         <>
-          <div className="overflow-x-auto rounded-xl border bg-white shadow-sm">
+          <div className="overflow-hidden rounded-2xl border bg-white shadow-sm">
+            <div className="flex items-center justify-between border-b bg-slate-50/80 px-4 py-3">
+              <div className="text-sm font-medium text-slate-700">{t("stock.table.title")}</div>
+              <span className="rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+                {pagination.total} {t("stock.table.rows")}
+              </span>
+            </div>
+            <div className="overflow-x-auto">
             <table className="table-auto w-full border-collapse text-sm">
               <thead className="bg-muted/50">
                 <tr className="text-left">
@@ -126,7 +164,10 @@ export default function StockList() {
                 {items.map((item) => (
                   <tr key={item.stock_id} className="border-t hover:bg-gray-50">
                     <td className="px-4 py-3 font-medium">{item.stock_id}</td>
-                    <td className="px-4 py-3">{item.product_lib || t("common.notAvailable")}</td>
+                    <td className="px-4 py-3">
+                      <div className="font-medium text-slate-900">{item.product_lib || t("common.notAvailable")}</div>
+                      <div className="text-xs text-muted-foreground">{item.product_id ?? t("common.notAvailable")}</div>
+                    </td>
                     <td className="px-4 py-3 text-muted-foreground">{item.product_bar_code || t("common.notAvailable")}</td>
                     <td className="px-4 py-3">{item.quantity}</td>
                     <td className="px-4 py-3">{item.locker || t("common.notAvailable")}</td>
@@ -136,6 +177,7 @@ export default function StockList() {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
           <Pagination
             currentPage={pagination.page}

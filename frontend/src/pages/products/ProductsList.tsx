@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import { Package2, Search, SlidersHorizontal, Tags } from "lucide-react";
 import { fetchProducts } from "@/api/products";
 import { useAuth } from "@/auth/AuthContext";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Input } from "@/components/ui/input";
 import { Pagination } from "@/components/ui/Pagination";
@@ -113,7 +115,39 @@ export default function ProductsList() {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-xl border bg-white p-5 shadow-sm">
+      <Card className="overflow-hidden border-white/70 bg-white/95 shadow-sm">
+        <CardContent className="space-y-5 p-5">
+          <div className="grid gap-4 lg:grid-cols-3">
+            <div className="rounded-2xl border bg-muted/20 p-4">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Package2 className="h-4 w-4 text-primary" />
+                {t("page.products.title")}
+              </div>
+              <p className="mt-3 text-2xl font-semibold">{pagination.total}</p>
+              <p className="text-sm text-muted-foreground">{t("products.summary.records")}</p>
+            </div>
+            <div className="rounded-2xl border bg-muted/20 p-4">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Search className="h-4 w-4 text-primary" />
+                {t("common.search")}
+              </div>
+              <p className="mt-3 text-sm font-medium text-slate-900">
+                {search.trim() || t("common.all")}
+              </p>
+              <p className="text-sm text-muted-foreground">{t("products.summary.search")}</p>
+            </div>
+            <div className="rounded-2xl border bg-muted/20 p-4">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Tags className="h-4 w-4 text-primary" />
+                {t("common.filterType")}
+              </div>
+              <p className="mt-3 text-sm font-medium text-slate-900">
+                {typeFilter === "ALL" ? t("common.all") : `Type ${typeFilter}`}
+              </p>
+              <p className="text-sm text-muted-foreground">{t("products.summary.type")}</p>
+            </div>
+          </div>
+
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="grid flex-1 gap-4 md:grid-cols-2">
             <div className="space-y-2">
@@ -150,7 +184,8 @@ export default function ProductsList() {
             )}
           </div>
         </div>
-      </div>
+        </CardContent>
+      </Card>
 
       {loading && (
         <div className="rounded-xl border bg-white p-8 text-center text-muted-foreground shadow-sm">
@@ -170,7 +205,17 @@ export default function ProductsList() {
 
       {!loading && !error && products.length > 0 && (
         <>
-          <div className="overflow-x-auto rounded-xl border bg-white shadow-sm">
+          <div className="overflow-hidden rounded-2xl border bg-white shadow-sm">
+            <div className="flex items-center justify-between border-b bg-slate-50/80 px-4 py-3">
+              <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
+                <SlidersHorizontal className="h-4 w-4 text-primary" />
+                {t("products.table.title")}
+              </div>
+              <span className="rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+                {pagination.total} {t("common.items")}
+              </span>
+            </div>
+            <div className="overflow-x-auto">
             <table className="table-auto w-full border-collapse text-sm">
               <thead className="bg-muted/50">
                 <tr className="text-left">
@@ -189,8 +234,11 @@ export default function ProductsList() {
               <tbody>
                 {products.map((product) => (
                   <tr key={product.product_id} className="border-t hover:bg-gray-50">
-                    <td className="px-4 py-3 font-medium">{product.product_id}</td>
-                    <td className="px-4 py-3">{product.lib || t("common.notAvailable")}</td>
+                    <td className="px-4 py-3 font-medium text-slate-900">{product.product_id}</td>
+                    <td className="px-4 py-3">
+                      <div className="font-medium text-slate-900">{product.lib || t("common.notAvailable")}</div>
+                      <div className="text-xs text-muted-foreground">{product.dci || t("common.notAvailable")}</div>
+                    </td>
                     <td className="px-4 py-3 text-muted-foreground">{product.bar_code || t("common.notAvailable")}</td>
                     <td className="px-4 py-3">{product.dci || t("common.notAvailable")}</td>
                     <td className="px-4 py-3">{formatDecimal(product.price, t("common.notAvailable"))}</td>
@@ -210,9 +258,11 @@ export default function ProductsList() {
                           </Button>
                         </Link>
                         {canManageProducts && (
-                          <Button size="sm" variant="outline" className="rounded-xl">
-                            {t("common.edit")}
-                          </Button>
+                          <Link to={`/app/admin/medicines?productId=${product.product_id}`}>
+                            <Button size="sm" variant="outline" className="rounded-xl">
+                              {t("common.edit")}
+                            </Button>
+                          </Link>
                         )}
                       </div>
                     </td>
@@ -220,6 +270,7 @@ export default function ProductsList() {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
 
           <Pagination

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { AlertTriangle, ChartNoAxesColumn, ShieldCheck, Stethoscope, UserCog, Users } from "lucide-react";
+import { AlertTriangle, ChartColumnBig, ShieldCheck, Stethoscope, UserCog, Users } from "lucide-react";
 import { fetchUsers } from "@/api/users";
 import { useAuth } from "@/auth/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -159,7 +159,7 @@ export default function SecurityPage() {
             {[
               { to: "/app/admin/users", label: t("security.action.users"), icon: Users },
               { to: "/app/admin/doctors", label: t("security.action.doctors"), icon: Stethoscope },
-              { to: "/app/bi/reports", label: t("security.action.analytics"), icon: ChartNoAxesColumn },
+              { to: "/app/bi/reports", label: t("security.action.analytics"), icon: ChartColumnBig },
             ].map(({ to, label, icon: Icon }) => (
               <Button key={to} asChild variant="outline" className="h-auto w-full justify-start gap-3 rounded-2xl px-4 py-4">
                 <Link to={to}>
