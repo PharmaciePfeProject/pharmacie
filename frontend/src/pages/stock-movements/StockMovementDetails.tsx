@@ -10,9 +10,11 @@ import {
   formatDetailValue,
 } from "@/components/ui/detail-view";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { useLanguage } from "@/i18n/LanguageContext";
 import type { StockMovement } from "@/types/stock-movements";
 
 export default function StockMovementDetails() {
+  const { t } = useLanguage();
   const { id } = useParams();
   const [item, setItem] = useState<StockMovement | null>(null);
   const [loading, setLoading] = useState(true);
@@ -22,7 +24,7 @@ export default function StockMovementDetails() {
     const movementId = Number(id);
 
     if (!Number.isInteger(movementId) || movementId <= 0) {
-      setError("Invalid movement id.");
+      setError(t("movementDetails.invalidId"));
       setLoading(false);
       return;
     }
@@ -39,7 +41,7 @@ export default function StockMovementDetails() {
         }
       } catch (err: any) {
         if (active) {
-          setError(err?.response?.data?.message || "Failed to load stock movement.");
+          setError(err?.response?.data?.message || t("movementDetails.loadFailed"));
           setItem(null);
         }
       } finally {
@@ -52,15 +54,15 @@ export default function StockMovementDetails() {
     return () => {
       active = false;
     };
-  }, [id]);
+  }, [id, t]);
 
   return (
     <div className="space-y-6">
-      <DetailBackLink to="/app/stock-movements" label="Back to movements" />
+      <DetailBackLink to="/app/stock-movements" label={t("movementDetails.back")} />
 
       {loading && (
         <div className="rounded-3xl border border-border bg-white p-8 text-center text-muted-foreground shadow-sm">
-          Loading stock movement...
+          {t("movementDetails.loading")}
         </div>
       )}
 
@@ -73,52 +75,52 @@ export default function StockMovementDetails() {
       {item && !loading && !error && (
         <>
           <DetailHero
-            eyebrow="Stock movement"
+            eyebrow={t("page.movements.title")}
             title={String(item.num_movement || `Movement #${item.movement_id}`)}
-            description="This screen separates operational context from line-level quantities so the movement can be understood quickly by a new user."
-            badge={`${item.lines.length} line${item.lines.length === 1 ? "" : "s"}`}
+            description={t("movementDetails.heroDescription")}
+            badge={`${item.lines.length} ${item.lines.length === 1 ? t("common.line") : t("common.linesLabel")}`}
           />
 
           <DetailStatGrid>
             <DetailStatCard
-              label="Movement date"
-              value={item.date_movement ? new Date(item.date_movement).toLocaleString() : "Not available"}
+              label={t("movementDetails.date")}
+              value={item.date_movement ? new Date(item.date_movement).toLocaleString() : t("common.notAvailable")}
               emphasis
             />
             <DetailStatCard
-              label="Type / discriminator"
+              label={t("movementDetails.typeDiscriminator")}
               value={`${formatDetailValue(item.type_mvt, "-")} / ${formatDetailValue(item.descriminator, "-")}`}
             />
-            <DetailStatCard label="User" value={formatDetailValue(item.username)} />
-            <DetailStatCard label="Lines" value={item.lines.length} emphasis />
+            <DetailStatCard label={t("common.user")} value={formatDetailValue(item.username)} />
+            <DetailStatCard label={t("common.lines")} value={item.lines.length} emphasis />
           </DetailStatGrid>
 
           <DetailStatGrid>
             <DetailStatCard
-              label="Reference type"
+              label={t("movements.referenceType")}
               value={`${formatDetailValue(item.reference_type_id, "-")} / ${formatDetailValue(item.reference_type_label, "-")}`}
             />
             <DetailStatCard
-              label="Location"
+              label={t("common.location")}
               value={`${formatDetailValue(item.location_id, "-")} / ${formatDetailValue(item.location_label, "-")}`}
             />
             <DetailStatCard
-              label="Business links"
+              label={t("movementDetails.businessLinks")}
               value={
                 <div className="space-y-1 text-sm font-medium text-slate-700">
-                  <div>Day: {formatDetailValue(item.day_id, "-")}</div>
-                  <div>Distribution: {formatDetailValue(item.distribution_id, "-")}</div>
-                  <div>Internal delivery: {formatDetailValue(item.internal_delivery_id, "-")}</div>
-                  <div>Reception: {formatDetailValue(item.reception_id, "-")}</div>
+                  <div>{t("common.dayId")}: {formatDetailValue(item.day_id, "-")}</div>
+                  <div>{t("page.distributions.title")}: {formatDetailValue(item.distribution_id, "-")}</div>
+                  <div>{t("page.internalDeliveries.title")}: {formatDetailValue(item.internal_delivery_id, "-")}</div>
+                  <div>{t("page.receptions.title")}: {formatDetailValue(item.reception_id, "-")}</div>
                 </div>
               }
             />
-            <DetailStatCard label="Record ID" value={formatDetailValue(item.movement_id, "-")} />
+            <DetailStatCard label={t("common.recordId")} value={formatDetailValue(item.movement_id, "-")} />
           </DetailStatGrid>
 
           <DetailSection
-            title="Movement lines"
-            description="Product and lot details pulled from the real movement line table."
+            title={t("movementDetails.linesTitle")}
+            description={t("movementDetails.linesDescription")}
           >
 
             {item.lines.length === 0 ? (
@@ -128,11 +130,11 @@ export default function StockMovementDetails() {
             <table className="table-auto w-full border-collapse text-sm">
               <thead className="bg-slate-50">
                 <tr className="text-left">
-                  <th className="px-4 py-3 text-sm font-semibold">Line ID</th>
-                  <th className="px-4 py-3 text-sm font-semibold">Product</th>
-                  <th className="px-4 py-3 text-sm font-semibold">Lot</th>
-                  <th className="px-4 py-3 text-sm font-semibold">Quantity</th>
-                  <th className="px-4 py-3 text-sm font-semibold">Motif ID</th>
+                  <th className="px-4 py-3 text-sm font-semibold">{t("common.lineId")}</th>
+                  <th className="px-4 py-3 text-sm font-semibold">{t("common.product")}</th>
+                  <th className="px-4 py-3 text-sm font-semibold">{t("common.lot")}</th>
+                  <th className="px-4 py-3 text-sm font-semibold">{t("common.quantity")}</th>
+                  <th className="px-4 py-3 text-sm font-semibold">{t("movementDetails.motifId")}</th>
                 </tr>
               </thead>
                 <tbody>
@@ -141,14 +143,14 @@ export default function StockMovementDetails() {
                     <td className="px-4 py-3 font-medium">{line.line_id}</td>
                     <td className="px-4 py-3">
                       <div className="font-medium text-slate-900">{formatDetailValue(line.product_lib)}</div>
-                      <div className="text-xs text-slate-500">Product ID: {formatDetailValue(line.product_id, "-")}</div>
+                      <div className="text-xs text-slate-500">{t("common.productId")}: {formatDetailValue(line.product_id, "-")}</div>
                     </td>
                     <td className="px-4 py-3">
                       <div className="font-medium text-slate-900">{formatDetailValue(line.lot_label)}</div>
-                      <div className="text-xs text-slate-500">Lot ID: {formatDetailValue(line.lot_id, "-")}</div>
+                      <div className="text-xs text-slate-500">{t("common.lotId")}: {formatDetailValue(line.lot_id, "-")}</div>
                     </td>
                     <td className="px-4 py-3">{line.movement_qte}</td>
-                    <td className="px-4 py-3">{line.motif_id ?? "Not available"}</td>
+                    <td className="px-4 py-3">{line.motif_id ?? t("common.notAvailable")}</td>
                   </tr>
                 ))}
               </tbody>
