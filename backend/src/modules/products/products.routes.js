@@ -5,7 +5,11 @@ import {
   listProducts,
   updateProduct,
 } from "./products.controller.js";
-import { productBodySchema, productParamsSchema, productQuerySchema } from "./products.schemas.js";
+import {
+  productBodySchema,
+  productParamsSchema,
+  productQuerySchema,
+} from "./products.schemas.js";
 import { requireAuth } from "../../middleware/authJwt.js";
 import { requirePermission } from "../../middleware/requirePermission.js";
 import { PERMISSIONS } from "../../utils/rbac.js";
@@ -27,14 +31,26 @@ function validate(schema, target = "body") {
   };
 }
 
-r.get("/", requireAuth, validate(productQuerySchema, "query"), listProducts);
-r.get("/:id", requireAuth, validate(productParamsSchema, "params"), getProductById);
+r.get(
+  "/",
+  requireAuth,
+  requirePermission(PERMISSIONS.PRODUCTS_READ),
+  validate(productQuerySchema, "query"),
+  listProducts,
+);
+r.get(
+  "/:id",
+  requireAuth,
+  requirePermission(PERMISSIONS.PRODUCTS_READ),
+  validate(productParamsSchema, "params"),
+  getProductById,
+);
 r.post(
   "/",
   requireAuth,
   requirePermission(PERMISSIONS.PRODUCTS_MANAGE),
   validate(productBodySchema),
-  createProduct
+  createProduct,
 );
 r.put(
   "/:id",
@@ -42,7 +58,7 @@ r.put(
   requirePermission(PERMISSIONS.PRODUCTS_MANAGE),
   validate(productParamsSchema, "params"),
   validate(productBodySchema),
-  updateProduct
+  updateProduct,
 );
 
 export default r;

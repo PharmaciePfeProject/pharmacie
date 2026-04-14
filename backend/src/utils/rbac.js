@@ -7,6 +7,13 @@ export const ROLE_KEYS = {
   RESPONSABLE_REPORTING: "RESPONSABLE_REPORTING",
 };
 
+export const ASSIGNABLE_ROLE_KEYS = [
+  ROLE_KEYS.ADMIN,
+  ROLE_KEYS.PHARMACIEN,
+  ROLE_KEYS.MEDECIN,
+  ROLE_KEYS.RESPONSABLE_REPORTING,
+];
+
 export const PERMISSIONS = {
   PRODUCTS_READ: "products.read",
   PRODUCTS_MANAGE: "products.manage",
@@ -31,22 +38,22 @@ export const ROLE_DEFINITIONS = {
   1: {
     key: ROLE_KEYS.ADMIN,
     label: "Administrator",
-    permissions: Object.values(PERMISSIONS),
+    permissions: [
+      PERMISSIONS.ADMIN_ACCESS,
+      PERMISSIONS.USERS_MANAGE,
+      PERMISSIONS.DOCTORS_MANAGE,
+    ],
   },
   2: {
     key: ROLE_KEYS.PHARMACIEN,
     label: "Pharmacien",
     permissions: [
       PERMISSIONS.PRODUCTS_READ,
-      PERMISSIONS.PRESCRIPTIONS_READ,
       PERMISSIONS.STOCK_READ,
       PERMISSIONS.STOCKLOTS_READ,
       PERMISSIONS.MOVEMENTS_READ,
-      PERMISSIONS.DISTRIBUTIONS_READ,
-      PERMISSIONS.DISTRIBUTIONS_MANAGE,
       PERMISSIONS.INVENTORIES_READ,
       PERMISSIONS.SUPPLY_READ,
-      PERMISSIONS.ANALYTICS_READ,
     ],
   },
   3: {
@@ -54,11 +61,9 @@ export const ROLE_DEFINITIONS = {
     label: "Preparateur",
     permissions: [
       PERMISSIONS.PRODUCTS_READ,
-      PERMISSIONS.PRESCRIPTIONS_READ,
       PERMISSIONS.STOCK_READ,
       PERMISSIONS.STOCKLOTS_READ,
       PERMISSIONS.MOVEMENTS_READ,
-      PERMISSIONS.DISTRIBUTIONS_READ,
       PERMISSIONS.SUPPLY_READ,
     ],
   },
@@ -74,7 +79,6 @@ export const ROLE_DEFINITIONS = {
       PERMISSIONS.INVENTORIES_READ,
       PERMISSIONS.INVENTORIES_MANAGE,
       PERMISSIONS.SUPPLY_READ,
-      PERMISSIONS.ANALYTICS_READ,
     ],
   },
   5: {
@@ -82,27 +86,15 @@ export const ROLE_DEFINITIONS = {
     label: "Medecin",
     permissions: [
       PERMISSIONS.PRODUCTS_READ,
-      PERMISSIONS.STOCK_READ,
       PERMISSIONS.PRESCRIPTIONS_READ,
       PERMISSIONS.PRESCRIPTIONS_MANAGE,
       PERMISSIONS.DISTRIBUTIONS_READ,
-      PERMISSIONS.ANALYTICS_READ,
     ],
   },
   6: {
     key: ROLE_KEYS.RESPONSABLE_REPORTING,
     label: "Responsable reporting",
-    permissions: [
-      PERMISSIONS.PRODUCTS_READ,
-      PERMISSIONS.STOCK_READ,
-      PERMISSIONS.STOCKLOTS_READ,
-      PERMISSIONS.MOVEMENTS_READ,
-      PERMISSIONS.DISTRIBUTIONS_READ,
-      PERMISSIONS.INVENTORIES_READ,
-      PERMISSIONS.SUPPLY_READ,
-      PERMISSIONS.ANALYTICS_READ,
-      PERMISSIONS.PRESCRIPTIONS_READ,
-    ],
+    permissions: [PERMISSIONS.ANALYTICS_READ],
   },
 };
 
@@ -117,7 +109,11 @@ export function getRoleDefinitionById(roleId) {
 }
 
 export function getRoleDefinitionByKey(roleKey) {
-  return Object.entries(ROLE_DEFINITIONS).find(([, value]) => value.key === roleKey)?.[1] || null;
+  return (
+    Object.entries(ROLE_DEFINITIONS).find(
+      ([, value]) => value.key === roleKey,
+    )?.[1] || null
+  );
 }
 
 export function getRoleKeysFromIds(roleIds = []) {
@@ -125,18 +121,21 @@ export function getRoleKeysFromIds(roleIds = []) {
     roleIds.map((roleId) => {
       const definition = getRoleDefinitionById(roleId);
       return definition ? definition.key : `ROLE_${roleId}`;
-    })
+    }),
   );
 }
 
 export function getRoleIdsFromKeys(roleKeys = []) {
   return unique(
     roleKeys
-      .map((roleKey) =>
-        Object.entries(ROLE_DEFINITIONS).find(([, value]) => value.key === roleKey)?.[0]
+      .map(
+        (roleKey) =>
+          Object.entries(ROLE_DEFINITIONS).find(
+            ([, value]) => value.key === roleKey,
+          )?.[0],
       )
       .filter(Boolean)
-      .map((roleId) => Number(roleId))
+      .map((roleId) => Number(roleId)),
   );
 }
 
@@ -150,7 +149,9 @@ export function getPermissionsFromRoleKeys(roleKeys = []) {
 }
 
 export function buildAccessFromRoleIds(roleIds = []) {
-  const normalizedRoleIds = unique(roleIds.map((roleId) => Number(roleId)).filter(Number.isFinite));
+  const normalizedRoleIds = unique(
+    roleIds.map((roleId) => Number(roleId)).filter(Number.isFinite),
+  );
   const roles = getRoleKeysFromIds(normalizedRoleIds);
   const permissions = getPermissionsFromRoleKeys(roles);
 
@@ -182,23 +183,30 @@ export function hasPermission(userLike, permissionKey) {
 }
 
 export function normalizeAuthPayload(payload = {}) {
-  const hasStringRoles = Array.isArray(payload.roles) && payload.roles.every((role) => typeof role === "string");
+  const hasStringRoles =
+    Array.isArray(payload.roles) &&
+    payload.roles.every((role) => typeof role === "string");
 
   if (hasStringRoles) {
     const access = buildAccessFromRoleKeys(payload.roles);
     return {
       ...payload,
-      roleIds: Array.isArray(payload.roleIds) && payload.roleIds.length > 0 ? payload.roleIds : access.roleIds,
+      roleIds:
+        Array.isArray(payload.roleIds) && payload.roleIds.length > 0
+          ? payload.roleIds
+          : access.roleIds,
       roles: access.roles,
-      permissions:
-        Array.isArray(payload.permissions) && payload.permissions.length > 0
-          ? unique(payload.permissions)
-          : access.permissions,
+      permissions: access.permissions,
     };
   }
 
-  const rawRoleIds = Array.isArray(payload.roleIds) && payload.roleIds.length > 0 ? payload.roleIds : payload.roles;
-  const access = buildAccessFromRoleIds(Array.isArray(rawRoleIds) ? rawRoleIds : []);
+  const rawRoleIds =
+    Array.isArray(payload.roleIds) && payload.roleIds.length > 0
+      ? payload.roleIds
+      : payload.roles;
+  const access = buildAccessFromRoleIds(
+    Array.isArray(rawRoleIds) ? rawRoleIds : [],
+  );
 
   return {
     ...payload,
@@ -209,10 +217,12 @@ export function normalizeAuthPayload(payload = {}) {
 }
 
 export function listAssignableRoles() {
-  return Object.entries(ROLE_DEFINITIONS).map(([id, definition]) => ({
-    id: Number(id),
-    key: definition.key,
-    label: definition.label,
-    permissions: definition.permissions,
-  }));
+  return Object.entries(ROLE_DEFINITIONS)
+    .filter(([, definition]) => ASSIGNABLE_ROLE_KEYS.includes(definition.key))
+    .map(([id, definition]) => ({
+      id: Number(id),
+      key: definition.key,
+      label: definition.label,
+      permissions: definition.permissions,
+    }));
 }

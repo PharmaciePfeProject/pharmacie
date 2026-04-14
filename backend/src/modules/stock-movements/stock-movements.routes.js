@@ -1,5 +1,7 @@
 import { Router } from "express";
 import { requireAuth } from "../../middleware/authJwt.js";
+import { requirePermission } from "../../middleware/requirePermission.js";
+import { PERMISSIONS } from "../../utils/rbac.js";
 import {
   getStockMovementById,
   listStockMovements,
@@ -26,12 +28,19 @@ function validate(schema, target = "body") {
   };
 }
 
-r.get("/stock-movements", requireAuth, validate(stockMovementQuerySchema, "query"), listStockMovements);
+r.get(
+  "/stock-movements",
+  requireAuth,
+  requirePermission(PERMISSIONS.MOVEMENTS_READ),
+  validate(stockMovementQuerySchema, "query"),
+  listStockMovements,
+);
 r.get(
   "/stock-movements/:id",
   requireAuth,
+  requirePermission(PERMISSIONS.MOVEMENTS_READ),
   validate(stockMovementParamsSchema, "params"),
-  getStockMovementById
+  getStockMovementById,
 );
 
 export default r;

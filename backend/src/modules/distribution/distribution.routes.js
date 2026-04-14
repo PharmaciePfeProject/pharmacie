@@ -1,5 +1,7 @@
 import { Router } from "express";
 import { requireAuth } from "../../middleware/authJwt.js";
+import { requirePermission } from "../../middleware/requirePermission.js";
+import { PERMISSIONS } from "../../utils/rbac.js";
 import {
   getDistributionById,
   listDistributions,
@@ -26,12 +28,19 @@ function validate(schema, target = "body") {
   };
 }
 
-r.get("/distributions", requireAuth, validate(distributionQuerySchema, "query"), listDistributions);
+r.get(
+  "/distributions",
+  requireAuth,
+  requirePermission(PERMISSIONS.DISTRIBUTIONS_READ),
+  validate(distributionQuerySchema, "query"),
+  listDistributions,
+);
 r.get(
   "/distributions/:id",
   requireAuth,
+  requirePermission(PERMISSIONS.DISTRIBUTIONS_READ),
   validate(distributionParamsSchema, "params"),
-  getDistributionById
+  getDistributionById,
 );
 
 export default r;

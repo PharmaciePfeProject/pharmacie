@@ -1,6 +1,10 @@
 import { Router } from "express";
-import { register, login, me } from "./auth.controller.js";
-import { registerSchema, loginSchema } from "./auth.schemas.js";
+import { login, me, updateMe, updateMyPassword } from "./auth.controller.js";
+import {
+  loginSchema,
+  updateMeSchema,
+  updatePasswordSchema,
+} from "./auth.schemas.js";
 import { requireAuth } from "../../middleware/authJwt.js";
 
 const r = Router();
@@ -18,50 +22,6 @@ function validate(schema) {
     next();
   };
 }
-
-/**
- * @openapi
- * /api/auth/register:
- *   post:
- *     summary: Register a new user
- *     tags:
- *       - Auth
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required: [email, username, password, firstname, lastname, functionName]
- *             properties:
- *               email:
- *                 type: string
- *                 example: "test@transtu.tn"
- *               username:
- *                 type: string
- *                 example: "testuser"
- *               password:
- *                 type: string
- *                 example: "123456"
- *               firstname:
- *                 type: string
- *                 example: "Test"
- *               lastname:
- *                 type: string
- *                 example: "User"
- *               functionName:
- *                 type: string
- *                 example: "Pharmacien"
- *               
- *     responses:
- *       201:
- *         description: Created
- *       400:
- *         description: Validation error
- *       409:
- *         description: Email already used
- */
-r.post("/register", validate(registerSchema), register);
 
 /**
  * @openapi
@@ -112,5 +72,12 @@ r.post("/login", validate(loginSchema), login);
  *         description: User not found
  */
 r.get("/me", requireAuth, me);
+r.put("/me", requireAuth, validate(updateMeSchema), updateMe);
+r.put(
+  "/me/password",
+  requireAuth,
+  validate(updatePasswordSchema),
+  updateMyPassword,
+);
 
 export default r;

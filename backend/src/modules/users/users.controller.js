@@ -1,12 +1,20 @@
 import { initDb, dbQuery } from "../../config/db.js";
 import bcrypt from "bcryptjs";
-import { buildAccessFromRoleIds, getRoleIdsFromKeys, listAssignableRoles } from "../../utils/rbac.js";
+import {
+  buildAccessFromRoleIds,
+  getRoleIdsFromKeys,
+  listAssignableRoles,
+  ROLE_KEYS,
+} from "../../utils/rbac.js";
 import { ensureDoctorProfileForName } from "../../utils/doctorProfiles.js";
 import { getNextIdWithTableLock } from "../../utils/oracleIds.js";
 
 function getSchemaName() {
   const rawSchema = process.env.ORACLE_SCHEMA || process.env.ORACLE_USER || "";
-  return rawSchema.trim().toUpperCase().replace(/[^A-Z0-9_]/g, "");
+  return rawSchema
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9_]/g, "");
 }
 
 function withSchema(objectName) {
@@ -41,12 +49,14 @@ async function getRoleIdsByUserIds(userIds) {
   }
 
   const bindNames = userIds.map((_, index) => `id${index}`);
-  const binds = Object.fromEntries(bindNames.map((bindName, index) => [bindName, userIds[index]]));
+  const binds = Object.fromEntries(
+    bindNames.map((bindName, index) => [bindName, userIds[index]]),
+  );
   const result = await dbQuery(
     `SELECT USER_ID, ROLES_ID
      FROM ${USER_ROLES_TABLE}
      WHERE USER_ID IN (${bindNames.map((bindName) => `:${bindName}`).join(", ")})`,
-    binds
+    binds,
   );
 
   const roleIdsByUserId = new Map();
@@ -63,14 +73,18 @@ export async function listUsers(req, res) {
   const usersRes = await dbQuery(
     `SELECT ID, ACTIVED, EMAIL, USERNAME, FIRSTNAME, LASTNAME, FUNCTION
      FROM ${USERS_TABLE}
-     ORDER BY ID`
+     ORDER BY ID`,
   );
 
   const users = usersRes.rows;
-  const roleIdsByUserId = await getRoleIdsByUserIds(users.map((user) => user.ID));
+  const roleIdsByUserId = await getRoleIdsByUserIds(
+    users.map((user) => user.ID),
+  );
 
   return res.json({
-    items: users.map((user) => shapeUser(user, roleIdsByUserId.get(user.ID) || [])),
+    items: users.map((user) =>
+      shapeUser(user, roleIdsByUserId.get(user.ID) || []),
+    ),
     availableRoles: listAssignableRoles(),
   });
 }
@@ -79,7 +93,10 @@ export async function updateUserRoles(req, res) {
   const userId = req.params.id;
   const roleIds = getRoleIdsFromKeys(req.body.roles);
 
-  const userRes = await dbQuery(`SELECT ID FROM ${USERS_TABLE} WHERE ID = :id`, { id: userId });
+  const userRes = await dbQuery(
+    `SELECT ID FROM ${USERS_TABLE} WHERE ID = :id`,
+    { id: userId },
+  );
   if (userRes.rows.length === 0) {
     return res.status(404).json({ message: "User not found" });
   }
@@ -88,13 +105,17 @@ export async function updateUserRoles(req, res) {
   const conn = await pool.getConnection();
 
   try {
-    await conn.execute(`DELETE FROM ${USER_ROLES_TABLE} WHERE USER_ID = :id`, { id: userId }, { autoCommit: false });
+    await conn.execute(
+      `DELETE FROM ${USER_ROLES_TABLE} WHERE USER_ID = :id`,
+      { id: userId },
+      { autoCommit: false },
+    );
 
     for (const roleId of roleIds) {
       await conn.execute(
         `INSERT INTO ${USER_ROLES_TABLE} (USER_ID, ROLES_ID) VALUES (:userId, :roleId)`,
         { userId, roleId },
-        { autoCommit: false }
+        { autoCommit: false },
       );
     }
 
@@ -110,7 +131,7 @@ export async function updateUserRoles(req, res) {
     `SELECT ID, ACTIVED, EMAIL, USERNAME, FIRSTNAME, LASTNAME, FUNCTION
      FROM ${USERS_TABLE}
      WHERE ID = :id`,
-    { id: userId }
+    { id: userId },
   );
 
   return res.json({
@@ -118,9 +139,26 @@ export async function updateUserRoles(req, res) {
   });
 }
 
-export async function createDoctor(req, res) {
-  const { email, username, password, firstname, lastname } = req.body;
-  const functionName = "DOCTOR";
+function resolveFunctionName(roleKey, providedFunctionName) {
+  if (providedFunctionName) return providedFunctionName;
+
+  if (roleKey === ROLE_KEYS.MEDECIN) return "DOCTOR";
+  if (roleKey === ROLE_KEYS.PHARMACIEN) return "PHARMACIST";
+  if (roleKey === ROLE_KEYS.RESPONSABLE_REPORTING) return "REPORTING";
+  return null;
+}
+
+export async function createManagedUser(req, res) {
+  const {
+    email,
+    username,
+    password,
+    firstname,
+    lastname,
+    role,
+    functionName: rawFunctionName,
+  } = req.body;
+  const functionName = resolveFunctionName(role, rawFunctionName);
   const normalizedEmail = String(email).trim().toLowerCase();
   const normalizedUsername = String(username).trim();
   const normalizedFirstname = String(firstname).trim();
@@ -131,19 +169,19 @@ export async function createDoctor(req, res) {
      FROM ${USERS_TABLE}
      WHERE LOWER(EMAIL) = LOWER(:email)
          OR LOWER(USERNAME) = LOWER(:username)`,
-    { email: normalizedEmail, username: normalizedUsername }
+    { email: normalizedEmail, username: normalizedUsername },
   );
 
   if (existing.rows.length > 0) {
     return res.status(409).json({ message: "Email or username already used" });
   }
 
-  const doctorRoleIds = getRoleIdsFromKeys(["MEDECIN"]);
-  if (doctorRoleIds.length === 0) {
-    return res.status(500).json({ message: "Doctor role mapping is not configured" });
+  const roleIds = getRoleIdsFromKeys([role]);
+  if (roleIds.length === 0) {
+    return res.status(500).json({ message: "Role mapping is not configured" });
   }
 
-  const roleId = doctorRoleIds[0];
+  const roleId = roleIds[0];
 
   const hashedPassword = await bcrypt.hash(password, 10);
 
@@ -166,14 +204,14 @@ export async function createDoctor(req, res) {
         password: hashedPassword,
         username: normalizedUsername,
       },
-      { autoCommit: false }
+      { autoCommit: false },
     );
 
     await conn.execute(
       `INSERT INTO ${USER_ROLES_TABLE} (USER_ID, ROLES_ID)
        VALUES (:userId, :roleId)`,
       { userId, roleId },
-      { autoCommit: false }
+      { autoCommit: false },
     );
 
     await conn.commit();
@@ -184,22 +222,28 @@ export async function createDoctor(req, res) {
     await conn.close();
   }
 
-  try {
-    await ensureDoctorProfileForName({
-      firstname: normalizedFirstname,
-      lastname: normalizedLastname,
-    });
-  } catch (error) {
-    await dbQuery(`DELETE FROM ${USER_ROLES_TABLE} WHERE USER_ID = :userId`, { userId });
-    await dbQuery(`DELETE FROM ${USERS_TABLE} WHERE ID = :id`, { id: userId });
-    throw error;
+  if (role === ROLE_KEYS.MEDECIN) {
+    try {
+      await ensureDoctorProfileForName({
+        firstname: normalizedFirstname,
+        lastname: normalizedLastname,
+      });
+    } catch (error) {
+      await dbQuery(`DELETE FROM ${USER_ROLES_TABLE} WHERE USER_ID = :userId`, {
+        userId,
+      });
+      await dbQuery(`DELETE FROM ${USERS_TABLE} WHERE ID = :id`, {
+        id: userId,
+      });
+      throw error;
+    }
   }
 
   const createdUserRes = await dbQuery(
     `SELECT ID, ACTIVED, EMAIL, USERNAME, FIRSTNAME, LASTNAME, FUNCTION
      FROM ${USERS_TABLE}
      WHERE ID = :id`,
-    { id: userId }
+    { id: userId },
   );
 
   return res.status(201).json({

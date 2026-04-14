@@ -1,12 +1,14 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import { dbQuery, initDb } from "../../config/db.js";
-import { buildAccessFromRoleIds, DEFAULT_ROLE_ID } from "../../utils/rbac.js";
-import { getNextIdWithTableLock } from "../../utils/oracleIds.js";
+import { dbQuery } from "../../config/db.js";
+import { buildAccessFromRoleIds } from "../../utils/rbac.js";
 
 function getSchemaName() {
   const rawSchema = process.env.ORACLE_SCHEMA || process.env.ORACLE_USER || "";
-  return rawSchema.trim().toUpperCase().replace(/[^A-Z0-9_]/g, "");
+  return rawSchema
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9_]/g, "");
 }
 
 function withSchema(objectName) {
@@ -26,7 +28,7 @@ function signToken(payload) {
 async function getUserRoleIds(userId) {
   const rolesRes = await dbQuery(
     `SELECT ROLES_ID FROM ${USER_ROLES_TABLE} WHERE USER_ID = :id`,
-    { id: userId }
+    { id: userId },
   );
 
   return rolesRes.rows.map((row) => row.ROLES_ID);
@@ -63,89 +65,6 @@ function signUserToken(user, roleIds) {
   });
 }
 
-export async function register(req, res) {
-  const { email, username, password, firstname, lastname, functionName } = req.body;
-  if (String(functionName || "").trim().toUpperCase() === "DOCTOR") {
-    return res.status(403).json({
-      message: "Doctor accounts must be created by an administrator.",
-    });
-  }
-
-  const normalizedEmail = String(email).trim().toLowerCase();
-  const normalizedUsername = String(username).trim();
-  const normalizedFirstname = String(firstname).trim();
-  const normalizedLastname = String(lastname).trim();
-
-  const existing = await dbQuery(
-    `SELECT ID, EMAIL, USERNAME FROM ${USERS_TABLE} WHERE LOWER(EMAIL) = LOWER(:email) OR LOWER(USERNAME) = LOWER(:username)`,
-    { email: normalizedEmail, username: normalizedUsername }
-  );
-
-  if (existing.rows.length > 0) {
-    const duplicated = existing.rows[0];
-    if (duplicated?.EMAIL?.toLowerCase() === normalizedEmail) {
-      return res.status(409).json({ message: "Email already used" });
-    }
-    return res.status(409).json({ message: "Username already used" });
-  }
-
-  const hashed = await bcrypt.hash(password, 10);
-  const pool = await initDb();
-  const conn = await pool.getConnection();
-  let userId;
-
-  try {
-    userId = await getNextIdWithTableLock(conn, USERS_TABLE);
-
-    await conn.execute(
-      `INSERT INTO ${USERS_TABLE} (ID, ACTIVED, EMAIL, FIRSTNAME, FUNCTION, LASTNAME, PASSWORD, USERNAME)
-       VALUES (:id, :actived, :email, :firstname, :functionName, :lastname, :password, :username)`,
-      {
-        id: userId,
-        actived: 1,
-        email: normalizedEmail,
-        firstname: normalizedFirstname,
-        functionName,
-        lastname: normalizedLastname,
-        password: hashed,
-        username: normalizedUsername,
-      },
-      { autoCommit: false }
-    );
-
-    await conn.execute(
-      `INSERT INTO ${USER_ROLES_TABLE} (USER_ID, ROLES_ID)
-       VALUES (:userId, :roleId)`,
-      { userId, roleId: DEFAULT_ROLE_ID },
-      { autoCommit: false }
-    );
-
-    await conn.commit();
-  } catch (error) {
-    await conn.rollback();
-    throw error;
-  } finally {
-    await conn.close();
-  }
-
-  const createdUser = {
-    ID: userId,
-    EMAIL: normalizedEmail,
-    USERNAME: normalizedUsername,
-    FIRSTNAME: normalizedFirstname,
-    LASTNAME: normalizedLastname,
-    FUNCTION: functionName,
-    ACTIVED: 1,
-  };
-
-  const token = signUserToken(createdUser, [DEFAULT_ROLE_ID]);
-
-  return res.status(201).json({
-    token,
-    user: shapeAuthUser(createdUser, [DEFAULT_ROLE_ID]),
-  });
-}
-
 export async function login(req, res) {
   const { emailOrUsername, password } = req.body;
   const normalizedLogin = String(emailOrUsername).trim();
@@ -154,13 +73,15 @@ export async function login(req, res) {
     `SELECT ID, ACTIVED, EMAIL, USERNAME, PASSWORD, FIRSTNAME, LASTNAME, FUNCTION
      FROM ${USERS_TABLE}
      WHERE LOWER(EMAIL) = LOWER(:v) OR LOWER(USERNAME) = LOWER(:v)`,
-    { v: normalizedLogin }
+    { v: normalizedLogin },
   );
 
-  if (userRes.rows.length === 0) return res.status(401).json({ message: "Invalid credentials" });
+  if (userRes.rows.length === 0)
+    return res.status(401).json({ message: "Invalid credentials" });
 
   const user = userRes.rows[0];
-  if (user.ACTIVED !== 1) return res.status(403).json({ message: "User disabled" });
+  if (user.ACTIVED !== 1)
+    return res.status(403).json({ message: "User disabled" });
 
   const ok = await bcrypt.compare(password, user.PASSWORD);
   if (!ok) return res.status(401).json({ message: "Invalid credentials" });
@@ -185,7 +106,7 @@ export async function me(req, res) {
     `SELECT ID, ACTIVED, EMAIL, USERNAME, FIRSTNAME, LASTNAME, FUNCTION
      FROM ${USERS_TABLE}
      WHERE ID = :id`,
-    { id: userId }
+    { id: userId },
   );
 
   if (userRes.rows.length === 0) {
@@ -199,4 +120,139 @@ export async function me(req, res) {
   return res.json({
     user: shapeAuthUser(user, roleIds),
   });
+}
+
+export async function updateMe(req, res) {
+  const userId = req.user?.sub;
+  if (!userId) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+
+  const updates = req.body;
+  const normalizedEmail = updates.email
+    ? String(updates.email).trim().toLowerCase()
+    : undefined;
+  const normalizedUsername = updates.username
+    ? String(updates.username).trim()
+    : undefined;
+  const normalizedFirstname = updates.firstname
+    ? String(updates.firstname).trim()
+    : undefined;
+  const normalizedLastname = updates.lastname
+    ? String(updates.lastname).trim()
+    : undefined;
+  const normalizedFunctionName =
+    typeof updates.functionName === "string"
+      ? updates.functionName.trim() || null
+      : undefined;
+
+  if (normalizedEmail || normalizedUsername) {
+    const duplicateRes = await dbQuery(
+      `SELECT ID
+       FROM ${USERS_TABLE}
+       WHERE ID <> :id
+         AND (
+           (${normalizedEmail ? "LOWER(EMAIL) = LOWER(:email)" : "1 = 0"})
+           OR
+           (${normalizedUsername ? "LOWER(USERNAME) = LOWER(:username)" : "1 = 0"})
+         )`,
+      {
+        id: userId,
+        email: normalizedEmail,
+        username: normalizedUsername,
+      },
+    );
+
+    if (duplicateRes.rows.length > 0) {
+      return res
+        .status(409)
+        .json({ message: "Email or username already used" });
+    }
+  }
+
+  const fields = [];
+  const binds = { id: userId };
+
+  if (normalizedEmail !== undefined) {
+    fields.push("EMAIL = :email");
+    binds.email = normalizedEmail;
+  }
+  if (normalizedUsername !== undefined) {
+    fields.push("USERNAME = :username");
+    binds.username = normalizedUsername;
+  }
+  if (normalizedFirstname !== undefined) {
+    fields.push("FIRSTNAME = :firstname");
+    binds.firstname = normalizedFirstname;
+  }
+  if (normalizedLastname !== undefined) {
+    fields.push("LASTNAME = :lastname");
+    binds.lastname = normalizedLastname;
+  }
+  if (normalizedFunctionName !== undefined) {
+    fields.push("FUNCTION = :functionName");
+    binds.functionName = normalizedFunctionName;
+  }
+
+  if (fields.length > 0) {
+    await dbQuery(
+      `UPDATE ${USERS_TABLE}
+       SET ${fields.join(", ")}
+       WHERE ID = :id`,
+      binds,
+    );
+  }
+
+  const userRes = await dbQuery(
+    `SELECT ID, ACTIVED, EMAIL, USERNAME, FIRSTNAME, LASTNAME, FUNCTION
+     FROM ${USERS_TABLE}
+     WHERE ID = :id`,
+    { id: userId },
+  );
+
+  if (userRes.rows.length === 0) {
+    return res.status(404).json({ message: "User not found" });
+  }
+
+  const roleIds = await getUserRoleIds(userId);
+  return res.json({
+    user: shapeAuthUser(userRes.rows[0], roleIds),
+  });
+}
+
+export async function updateMyPassword(req, res) {
+  const userId = req.user?.sub;
+  if (!userId) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+
+  const { currentPassword, newPassword } = req.body;
+
+  const userRes = await dbQuery(
+    `SELECT ID, PASSWORD
+     FROM ${USERS_TABLE}
+     WHERE ID = :id`,
+    { id: userId },
+  );
+
+  if (userRes.rows.length === 0) {
+    return res.status(404).json({ message: "User not found" });
+  }
+
+  const user = userRes.rows[0];
+  const isValid = await bcrypt.compare(currentPassword, user.PASSWORD);
+
+  if (!isValid) {
+    return res.status(400).json({ message: "Current password is invalid" });
+  }
+
+  const hashedPassword = await bcrypt.hash(newPassword, 10);
+  await dbQuery(
+    `UPDATE ${USERS_TABLE}
+     SET PASSWORD = :password
+     WHERE ID = :id`,
+    { id: userId, password: hashedPassword },
+  );
+
+  return res.json({ message: "Password updated successfully" });
 }

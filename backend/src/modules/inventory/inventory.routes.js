@@ -1,7 +1,12 @@
 import { Router } from "express";
 import { requireAuth } from "../../middleware/authJwt.js";
+import { requirePermission } from "../../middleware/requirePermission.js";
+import { PERMISSIONS } from "../../utils/rbac.js";
 import { getInventoryById, listInventories } from "./inventory.controller.js";
-import { inventoryParamsSchema, inventoryQuerySchema } from "./inventory.schemas.js";
+import {
+  inventoryParamsSchema,
+  inventoryQuerySchema,
+} from "./inventory.schemas.js";
 
 const r = Router();
 
@@ -20,7 +25,19 @@ function validate(schema, target = "body") {
   };
 }
 
-r.get("/inventories", requireAuth, validate(inventoryQuerySchema, "query"), listInventories);
-r.get("/inventories/:id", requireAuth, validate(inventoryParamsSchema, "params"), getInventoryById);
+r.get(
+  "/inventories",
+  requireAuth,
+  requirePermission(PERMISSIONS.INVENTORIES_READ),
+  validate(inventoryQuerySchema, "query"),
+  listInventories,
+);
+r.get(
+  "/inventories/:id",
+  requireAuth,
+  requirePermission(PERMISSIONS.INVENTORIES_READ),
+  validate(inventoryParamsSchema, "params"),
+  getInventoryById,
+);
 
 export default r;

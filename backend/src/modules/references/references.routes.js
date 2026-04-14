@@ -1,5 +1,7 @@
 import { Router } from "express";
 import { requireAuth } from "../../middleware/authJwt.js";
+import { requirePermission } from "../../middleware/requirePermission.js";
+import { PERMISSIONS } from "../../utils/rbac.js";
 import {
   createLocation,
   createMovementType,
@@ -9,7 +11,10 @@ import {
   listProductTypes,
   listDci,
 } from "./references.controller.js";
-import { locationBodySchema, movementTypeBodySchema } from "./references.schemas.js";
+import {
+  locationBodySchema,
+  movementTypeBodySchema,
+} from "./references.schemas.js";
 
 const r = Router();
 
@@ -28,19 +33,51 @@ function validate(schema, target = "body") {
   };
 }
 
-r.get("/locations", requireAuth, listLocations);
-r.post("/locations", requireAuth, validate(locationBodySchema), createLocation);
+r.get(
+  "/locations",
+  requireAuth,
+  requirePermission(PERMISSIONS.STOCK_READ),
+  listLocations,
+);
+r.post(
+  "/locations",
+  requireAuth,
+  requirePermission(PERMISSIONS.STOCK_MANAGE),
+  validate(locationBodySchema),
+  createLocation,
+);
 
-r.get("/movement-types", requireAuth, listMovementTypes);
+r.get(
+  "/movement-types",
+  requireAuth,
+  requirePermission(PERMISSIONS.MOVEMENTS_READ),
+  listMovementTypes,
+);
 r.post(
   "/movement-types",
   requireAuth,
+  requirePermission(PERMISSIONS.STOCK_MANAGE),
   validate(movementTypeBodySchema),
-  createMovementType
+  createMovementType,
 );
 
-r.get("/pharma-classes", requireAuth, listPharmaClasses);
-r.get("/product-types", requireAuth, listProductTypes);
-r.get("/dci", requireAuth, listDci);
+r.get(
+  "/pharma-classes",
+  requireAuth,
+  requirePermission(PERMISSIONS.PRODUCTS_READ),
+  listPharmaClasses,
+);
+r.get(
+  "/product-types",
+  requireAuth,
+  requirePermission(PERMISSIONS.PRODUCTS_READ),
+  listProductTypes,
+);
+r.get(
+  "/dci",
+  requireAuth,
+  requirePermission(PERMISSIONS.PRODUCTS_READ),
+  listDci,
+);
 
 export default r;

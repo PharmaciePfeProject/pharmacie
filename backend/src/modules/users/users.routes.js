@@ -2,8 +2,16 @@ import { Router } from "express";
 import { requireAuth } from "../../middleware/authJwt.js";
 import { requirePermission } from "../../middleware/requirePermission.js";
 import { PERMISSIONS } from "../../utils/rbac.js";
-import { createDoctor, listUsers, updateUserRoles } from "./users.controller.js";
-import { createDoctorSchema, updateUserRolesSchema, userParamsSchema } from "./users.schemas.js";
+import {
+  createManagedUser,
+  listUsers,
+  updateUserRoles,
+} from "./users.controller.js";
+import {
+  createManagedUserSchema,
+  updateUserRolesSchema,
+  userParamsSchema,
+} from "./users.schemas.js";
 
 const r = Router();
 
@@ -24,11 +32,11 @@ function validate(schema, target = "body") {
 
 r.get("/", requireAuth, requirePermission(PERMISSIONS.USERS_MANAGE), listUsers);
 r.post(
-  "/doctors",
+  "/",
   requireAuth,
   requirePermission(PERMISSIONS.USERS_MANAGE),
-  validate(createDoctorSchema),
-  createDoctor
+  validate(createManagedUserSchema),
+  createManagedUser,
 );
 r.put(
   "/:id/roles",
@@ -36,7 +44,7 @@ r.put(
   requirePermission(PERMISSIONS.USERS_MANAGE),
   validate(userParamsSchema, "params"),
   validate(updateUserRolesSchema),
-  updateUserRoles
+  updateUserRoles,
 );
 
 export default r;
