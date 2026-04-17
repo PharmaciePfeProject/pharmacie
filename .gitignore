@@ -1,5 +1,0 @@
-# Keep only pharmacie-main tracked at repository root
-*
-!/.gitignore
-!/pharmacie-main/
-!/pharmacie-main/**
