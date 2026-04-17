@@ -2,6 +2,7 @@ import { dbQuery, initDb } from "../../config/db.js";
 import { chunkValues } from "../../utils/oracle.js";
 import { runPaginatedQuery } from "../../utils/pagination.js";
 import { ROLE_KEYS } from "../../utils/rbac.js";
+import ExcelJS from "exceljs";
 
 function getSchemaName() {
   const rawSchema = process.env.ORACLE_SCHEMA || process.env.ORACLE_USER || "";
@@ -15,10 +16,12 @@ function withSchema(objectName) {
 
 const PRESCRIPTION_TABLE = withSchema("PRESCRIPTION");
 const PRESCRIPTION_LINE_TABLE = withSchema("PRESCRIPTION_LINE");
+const PRESCRIPTION_RADIO_TABLE = withSchema("PRESCRIPTION_RADIO");
 const PRODUCT_TABLE = withSchema("PRODUCT");
 const DOCTOR_TABLE = withSchema("DOCTOR");
 const USERS_TABLE = withSchema("UTILISATEUR");
 let doctorActivedChecked = false;
+let prescriptionRadioChecked = false;
 
 async function ensureDoctorActivedColumn() {
   if (doctorActivedChecked) return;
@@ -38,6 +41,31 @@ async function ensureDoctorActivedColumn() {
   }
 
   doctorActivedChecked = true;
+}
+
+async function ensurePrescriptionRadioTable() {
+  if (prescriptionRadioChecked) return;
+
+  const owner = getSchemaName();
+  const result = await dbQuery(
+    `SELECT 1
+     FROM ALL_TABLES
+     WHERE OWNER = :owner
+       AND TABLE_NAME = 'PRESCRIPTION_RADIO'`,
+    { owner }
+  );
+
+  if (result.rows.length === 0) {
+    await dbQuery(
+      `CREATE TABLE ${PRESCRIPTION_RADIO_TABLE} (
+        ID NUMBER PRIMARY KEY,
+        PRESCRIPTION_ID NUMBER NOT NULL,
+        RADIO_NAME VARCHAR2(255 CHAR) NOT NULL
+      )`
+    );
+  }
+
+  prescriptionRadioChecked = true;
 }
 
 const prescriptionHeaderSelect = `
@@ -177,6 +205,35 @@ async function getPrescriptionLines(prescriptionIds) {
   return rows;
 }
 
+async function getPrescriptionRadios(prescriptionIds) {
+  if (prescriptionIds.length === 0) return [];
+
+  await ensurePrescriptionRadioTable();
+  const rows = [];
+
+  for (const idsChunk of chunkValues(prescriptionIds)) {
+    const bindNames = idsChunk.map((_, index) => `id${index}`);
+    const binds = Object.fromEntries(idsChunk.map((id, index) => [`id${index}`, id]));
+
+    const result = await dbQuery(
+      `
+      SELECT
+        pr.ID AS radio_id,
+        pr.PRESCRIPTION_ID AS prescription_id,
+        pr.RADIO_NAME AS radio_name
+      FROM ${PRESCRIPTION_RADIO_TABLE} pr
+      WHERE pr.PRESCRIPTION_ID IN (${bindNames.map((name) => `:${name}`).join(", ")})
+      ORDER BY pr.PRESCRIPTION_ID DESC, pr.ID ASC
+      `,
+      binds
+    );
+
+    rows.push(...result.rows);
+  }
+
+  return rows;
+}
+
 function mapPrescriptionHeader(header) {
   return {
     prescription_id: header.PRESCRIPTION_ID,
@@ -191,8 +248,9 @@ function mapPrescriptionHeader(header) {
   };
 }
 
-function attachLines(headers, lines) {
+function attachPrescriptionDetails(headers, lines, radios) {
   const linesByPrescriptionId = new Map();
+  const radiosByPrescriptionId = new Map();
 
   for (const line of lines) {
     const key = line.PRESCRIPTION_ID;
@@ -212,13 +270,48 @@ function attachLines(headers, lines) {
     });
   }
 
+  for (const radio of radios) {
+    const key = radio.PRESCRIPTION_ID;
+    if (!radiosByPrescriptionId.has(key)) radiosByPrescriptionId.set(key, []);
+    radiosByPrescriptionId.get(key).push(radio.RADIO_NAME);
+  }
+
   return headers.map((header) => {
     const item = mapPrescriptionHeader(header);
     return {
       ...item,
       lines: linesByPrescriptionId.get(header.PRESCRIPTION_ID) || [],
+      radios: radiosByPrescriptionId.get(header.PRESCRIPTION_ID) || [],
     };
   });
+}
+
+function normalizeRadios(value) {
+  if (!Array.isArray(value)) return [];
+
+  const unique = new Set();
+  for (const item of value) {
+    const normalized = String(item || "").trim();
+    if (!normalized) continue;
+    unique.add(normalized);
+  }
+
+  return [...unique];
+}
+
+function buildExcelFilename() {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  const d = String(now.getDate()).padStart(2, "0");
+  return `prescriptions-${y}${m}${d}.xlsx`;
+}
+
+function formatPrescriptionDate(value) {
+  if (!value) return "";
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toISOString().slice(0, 10);
 }
 
 async function assertDoctorExists(doctorId) {
@@ -269,11 +362,93 @@ export async function listPrescriptions(req, res) {
   });
 
   const lines = await getPrescriptionLines(result.items.map((header) => header.PRESCRIPTION_ID));
+  const radios = await getPrescriptionRadios(result.items.map((header) => header.PRESCRIPTION_ID));
 
   return res.json({
-    items: attachLines(result.items, lines),
+    items: attachPrescriptionDetails(result.items, lines, radios),
     pagination: result.pagination,
   });
+}
+
+export async function exportPrescriptionsExcel(req, res) {
+  const { where, binds } = await buildPrescriptionFilters(req.query, req.user);
+  const headersResult = await dbQuery(
+    `${prescriptionHeaderSelect}${where} ORDER BY p.PRESCRIPTION_DATE DESC, p.ID DESC`,
+    binds
+  );
+
+  const lines = await getPrescriptionLines(headersResult.rows.map((header) => header.PRESCRIPTION_ID));
+  const radios = await getPrescriptionRadios(headersResult.rows.map((header) => header.PRESCRIPTION_ID));
+  const prescriptions = attachPrescriptionDetails(headersResult.rows, lines, radios);
+
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = "Pharmacie";
+  workbook.created = new Date();
+
+  const sheet = workbook.addWorksheet("Prescriptions");
+  sheet.columns = [
+    { header: "Prescription ID", key: "prescription_id", width: 16 },
+    { header: "Prescription Number", key: "prescription_number", width: 22 },
+    { header: "Date", key: "prescription_date", width: 14 },
+    { header: "Doctor", key: "doctor_name", width: 26 },
+    { header: "Type", key: "type", width: 16 },
+    { header: "Agent ID", key: "agent_id", width: 14 },
+    { header: "Line ID", key: "line_id", width: 12 },
+    { header: "Product ID", key: "product_id", width: 12 },
+    { header: "Product", key: "product_lib", width: 30 },
+    { header: "Quantity", key: "total_qt", width: 12 },
+    { header: "Days", key: "days", width: 10 },
+    { header: "Dist Number", key: "dist_number", width: 14 },
+    { header: "Periodic", key: "is_periodic", width: 10 },
+    { header: "Periodicity", key: "periodicity", width: 16 },
+    { header: "Posologie", key: "posologie", width: 30 },
+    { header: "Radios", key: "radios", width: 36 },
+  ];
+
+  sheet.getRow(1).font = { bold: true };
+
+  for (const prescription of prescriptions) {
+    if (prescription.lines.length === 0) {
+      sheet.addRow({
+        prescription_id: prescription.prescription_id,
+        prescription_number: prescription.prescription_number || "",
+        prescription_date: formatPrescriptionDate(prescription.prescription_date),
+        doctor_name: prescription.doctor_name || prescription.doctor_id || "",
+        type: prescription.type || "",
+        agent_id: prescription.agent_id || "",
+      });
+      continue;
+    }
+
+    for (const line of prescription.lines) {
+      sheet.addRow({
+        prescription_id: prescription.prescription_id,
+        prescription_number: prescription.prescription_number || "",
+        prescription_date: formatPrescriptionDate(prescription.prescription_date),
+        doctor_name: prescription.doctor_name || prescription.doctor_id || "",
+        type: prescription.type || "",
+        agent_id: prescription.agent_id || "",
+        line_id: line.line_id,
+        product_id: line.product_id,
+        product_lib: line.product_lib || "",
+        total_qt: line.total_qt,
+        days: line.days ?? "",
+        dist_number: line.dist_number ?? "",
+        is_periodic: line.is_periodic === 1 ? "Yes" : "No",
+        periodicity: line.periodicity || "",
+        posologie: line.posologie || "",
+        radios: prescription.radios.join(", "),
+      });
+    }
+  }
+
+  const buffer = await workbook.xlsx.writeBuffer();
+  res.setHeader(
+    "Content-Type",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+  );
+  res.setHeader("Content-Disposition", `attachment; filename=\"${buildExcelFilename()}\"`);
+  return res.send(Buffer.from(buffer));
 }
 
 export async function getPrescriptionById(req, res) {
@@ -284,12 +459,16 @@ export async function getPrescriptionById(req, res) {
   }
 
   const lines = await getPrescriptionLines([req.params.id]);
-  const [item] = attachLines(headerResult.rows, lines);
+  const radios = await getPrescriptionRadios([req.params.id]);
+  const [item] = attachPrescriptionDetails(headerResult.rows, lines, radios);
   return res.json({ item });
 }
 
 export async function createPrescription(req, res) {
   const doctorId = req.body.doctor_id;
+  const radios = normalizeRadios(req.body.radios);
+
+  await ensurePrescriptionRadioTable();
   await assertDoctorExists(doctorId);
   await assertProductsExist(req.body.lines.map((line) => line.product_id));
 
@@ -334,6 +513,7 @@ export async function createPrescription(req, res) {
     );
 
     let nextLineId = await getNextId(conn, PRESCRIPTION_LINE_TABLE);
+    let nextRadioId = await getNextId(conn, PRESCRIPTION_RADIO_TABLE);
 
     for (const line of req.body.lines) {
       await conn.execute(
@@ -378,6 +558,28 @@ export async function createPrescription(req, res) {
       nextLineId += 1;
     }
 
+    for (const radioName of radios) {
+      await conn.execute(
+        `INSERT INTO ${PRESCRIPTION_RADIO_TABLE} (
+          ID,
+          PRESCRIPTION_ID,
+          RADIO_NAME
+        ) VALUES (
+          :id,
+          :prescription_id,
+          :radio_name
+        )`,
+        {
+          id: nextRadioId,
+          prescription_id: prescriptionId,
+          radio_name: radioName,
+        },
+        { autoCommit: false }
+      );
+
+      nextRadioId += 1;
+    }
+
     await conn.commit();
   } catch (error) {
     await conn.rollback();
@@ -388,7 +590,8 @@ export async function createPrescription(req, res) {
 
   const headerResult = await dbQuery(`${prescriptionHeaderSelect} WHERE p.ID = :id`, { id: prescriptionId });
   const lines = await getPrescriptionLines([prescriptionId]);
-  const [item] = attachLines(headerResult.rows, lines);
+  const prescriptionRadios = await getPrescriptionRadios([prescriptionId]);
+  const [item] = attachPrescriptionDetails(headerResult.rows, lines, prescriptionRadios);
 
   return res.status(201).json({ item });
 }

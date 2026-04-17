@@ -44,3 +44,15 @@ export async function fetchPrescriptionTypes() {
   const res = await api.get<{ items: PrescriptionType[] }>("/api/prescriptions/types");
   return res.data.items;
 }
+
+export async function exportPrescriptionsExcel(filters: PrescriptionFilters = {}) {
+  const res = await api.get<Blob>("/api/prescriptions/export/excel", {
+    params: filters,
+    responseType: "blob",
+  });
+
+  return {
+    blob: res.data,
+    contentDisposition: res.headers["content-disposition"],
+  };
+}

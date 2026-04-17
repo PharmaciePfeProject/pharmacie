@@ -133,7 +133,7 @@ Notes:
 Exemple:
 
 ```env
-VITE_API_BASE_URL=http://localhost:4001
+VITE_API_BASE_URL=http://localhost:4000
 
 VITE_POWERBI_STOCK_REPORT=
 VITE_POWERBI_CONSUMPTION_REPORT=

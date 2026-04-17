@@ -33,5 +33,6 @@ export const createPrescriptionBodySchema = z.object({
   prescription_number: z.string().trim().max(255).optional(),
   type: z.string().trim().max(255).optional(),
   doctor_id: z.coerce.number().int().positive(),
+  radios: z.array(z.string().trim().min(1).max(255)).max(20).optional(),
   lines: z.array(prescriptionLineBodySchema).min(1),
 });

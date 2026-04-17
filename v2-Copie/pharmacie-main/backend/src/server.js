@@ -1,8 +1,9 @@
 import "dotenv/config";
 import { createApp } from "./app.js";
 import { initDb } from "./config/db.js";
+import { validateRequiredEnv } from "./config/env.js";
 
-const port = process.env.PORT || 4000;
+const { port } = validateRequiredEnv();
 
 async function bootstrap() {
   await initDb();

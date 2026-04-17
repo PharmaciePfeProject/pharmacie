@@ -1,26 +1,106 @@
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { BarChart3, ExternalLink, Presentation, ShieldCheck } from "lucide-react";
+import { fetchAnalyticsKpis } from "@/api/analytics";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/EmptyState";
+import type { AnalyticsKpiKey, AnalyticsKpiResponse, PowerBiTopic } from "@/types/analytics";
 
 const reportEmbeds = [
   {
+    topic: "stock" as PowerBiTopic,
     title: "Stock analysis",
     url: import.meta.env.VITE_POWERBI_STOCK_REPORT as string | undefined,
   },
   {
+    topic: "consumption" as PowerBiTopic,
     title: "Product consumption",
     url: import.meta.env.VITE_POWERBI_CONSUMPTION_REPORT as string | undefined,
   },
   {
+    topic: "distribution" as PowerBiTopic,
     title: "Distribution by district",
     url: import.meta.env.VITE_POWERBI_DISTRIBUTION_REPORT as string | undefined,
   },
+  {
+    topic: "movements" as PowerBiTopic,
+    title: "Stock movements trends",
+    url: import.meta.env.VITE_POWERBI_MOVEMENTS_REPORT as string | undefined,
+  },
+  {
+    topic: "inventory" as PowerBiTopic,
+    title: "Inventory discrepancies",
+    url: import.meta.env.VITE_POWERBI_INVENTORY_REPORT as string | undefined,
+  },
 ];
 
+const PERIOD_OPTIONS: Array<7 | 30 | 90> = [7, 30, 90];
+
 export default function BiDashboard() {
-  const availableEmbeds = reportEmbeds.filter((report) => Boolean(report.url));
+  const [kpiData, setKpiData] = useState<AnalyticsKpiResponse | null>(null);
+  const [loadingKpis, setLoadingKpis] = useState(true);
+  const [kpiError, setKpiError] = useState<string | null>(null);
+  const [selectedPeriod, setSelectedPeriod] = useState<7 | 30 | 90>(30);
+  const availableEmbeds = useMemo(() => {
+    if (!kpiData) return [];
+    const allowedTopics = new Set(kpiData.powerbi_topics);
+    return reportEmbeds.filter((report) => Boolean(report.url) && allowedTopics.has(report.topic));
+  }, [kpiData]);
+
+  useEffect(() => {
+    let active = true;
+
+    (async () => {
+      try {
+        setLoadingKpis(true);
+        setKpiError(null);
+        const data = await fetchAnalyticsKpis(selectedPeriod);
+        if (active) setKpiData(data);
+      } catch (err: any) {
+        if (active) setKpiError(err?.response?.data?.message || "Unable to load analytics KPIs.");
+      } finally {
+        if (active) setLoadingKpis(false);
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [selectedPeriod]);
+
+  const cards = useMemo(() => {
+    if (!kpiData) return [];
+
+    const cardMap: Record<AnalyticsKpiKey, { label: string; value: number | undefined }> = {
+      total_products: { label: "Total products", value: kpiData.kpis.total_products },
+      total_stock_qty: { label: "Total stock qty", value: kpiData.kpis.total_stock_qty },
+      low_stock_products: {
+        label: `Low stock (<= ${kpiData.kpis.low_stock_threshold})`,
+        value: kpiData.kpis.low_stock_products,
+      },
+      distributions_30d: {
+        label: `Distributions (${kpiData.period_days}d)`,
+        value: kpiData.kpis.distributions_30d,
+      },
+      distributed_qty_30d: {
+        label: `Distributed qty (${kpiData.period_days}d)`,
+        value: kpiData.kpis.distributed_qty_30d,
+      },
+      prescriptions_30d: {
+        label: `Prescriptions (${kpiData.period_days}d)`,
+        value: kpiData.kpis.prescriptions_30d,
+      },
+      stock_movements_30d: {
+        label: `Stock movements (${kpiData.period_days}d)`,
+        value: kpiData.kpis.stock_movements_30d,
+      },
+    };
+
+    return kpiData.kpi_keys.map((key) => cardMap[key]).filter((item) => item && item.value !== undefined);
+  }, [kpiData]);
+
+  const formatNumber = (value: number) => new Intl.NumberFormat().format(value);
 
   return (
     <div className="space-y-6">
@@ -60,7 +140,7 @@ export default function BiDashboard() {
           </Button>
           <Button asChild variant="outline" className="rounded-2xl">
             <a
-              href={import.meta.env.VITE_POWERBI_STOCK_REPORT || "#"}
+              href={availableEmbeds[0]?.url || "#"}
               target="_blank"
               rel="noreferrer"
             >
@@ -71,21 +151,80 @@ export default function BiDashboard() {
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-        {[
-          "Stock analysis",
-          "Product consumption",
-          "Distribution by district",
-          "Stock movements trends",
-          "Inventory discrepancies",
-        ].map((item) => (
-          <Card key={item} className="border-white/70 bg-white/95 shadow-sm">
-            <CardContent className="flex h-full items-center p-5 text-sm font-medium text-foreground">
-              {item}
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      {loadingKpis ? (
+        <p className="text-sm text-muted-foreground">Loading KPI data...</p>
+      ) : null}
+
+      {kpiError ? <p className="text-sm text-destructive">{kpiError}</p> : null}
+
+      <Card className="border-white/70 bg-white/95 shadow-sm">
+        <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
+          <p className="text-sm text-muted-foreground">KPI period</p>
+          <div className="flex flex-wrap gap-2">
+            {PERIOD_OPTIONS.map((days) => (
+              <Button
+                key={days}
+                type="button"
+                size="sm"
+                variant={selectedPeriod === days ? "default" : "outline"}
+                onClick={() => setSelectedPeriod(days)}
+                disabled={loadingKpis && selectedPeriod === days}
+                className="rounded-xl"
+              >
+                {days} days
+              </Button>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {kpiData ? (
+        <>
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            {cards.map((item) => (
+              <Card key={item.label} className="border-white/70 bg-white/95 shadow-sm">
+                <CardContent className="space-y-1 p-5">
+                  <p className="text-sm text-muted-foreground">{item.label}</p>
+                  <p className="text-2xl font-semibold">{formatNumber(item.value || 0)}</p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          {kpiData.top_products.length > 0 ? (
+            <Card className="border-white/70 bg-white/95 shadow-sm">
+              <CardHeader>
+                <CardTitle className="text-xl">Top distributed products ({kpiData.period_days} days)</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <table className="w-full table-auto border-collapse text-sm">
+                    <thead className="bg-muted/40">
+                      <tr className="text-left">
+                        <th className="px-3 py-2">Product ID</th>
+                        <th className="px-3 py-2">Product</th>
+                        <th className="px-3 py-2">Delivered qty</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {kpiData.top_products.map((item) => (
+                        <tr key={`${item.product_id}-${item.product_lib}`} className="border-t">
+                          <td className="px-3 py-2">{item.product_id ?? "-"}</td>
+                          <td className="px-3 py-2">{item.product_lib || "Unknown product"}</td>
+                          <td className="px-3 py-2">{formatNumber(item.delivered_qty)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <p className="mt-3 text-xs text-muted-foreground">
+                  Updated at {new Date(kpiData.generated_at).toLocaleString()}.
+                </p>
+              </CardContent>
+            </Card>
+          ) : null}
+        </>
+      ) : null}
 
       {availableEmbeds.length === 0 && (
         <EmptyState

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   createPrescription,
+  exportPrescriptionsExcel,
   fetchPrescriptionAgents,
   fetchPrescriptionDoctors,
   fetchPrescriptionTypes,
@@ -53,6 +54,7 @@ export default function PrescriptionsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [doctorId, setDoctorId] = useState("");
   const [prescriptionSearch, setPrescriptionSearch] = useState("");
   const [activePrescriptionSearch, setActivePrescriptionSearch] = useState("");
@@ -61,6 +63,7 @@ export default function PrescriptionsPage() {
   const [agentSituation, setAgentSituation] = useState("");
   const [prescriptionNumber, setPrescriptionNumber] = useState("");
   const [prescriptionType, setPrescriptionType] = useState("");
+  const [radiosInput, setRadiosInput] = useState("");
   const [systemDateLabel, setSystemDateLabel] = useState("");
   const [lines, setLines] = useState<LineForm[]>([createLine()]);
 
@@ -215,6 +218,7 @@ export default function PrescriptionsPage() {
     setAgentSituation("");
     setPrescriptionNumber("");
     setPrescriptionType("");
+    setRadiosInput("");
     setLines([createLine()]);
   };
 
@@ -249,6 +253,15 @@ export default function PrescriptionsPage() {
       return;
     }
 
+    const radios = Array.from(
+      new Set(
+        radiosInput
+          .split(/[,\n]/)
+          .map((entry) => entry.trim())
+          .filter(Boolean)
+      )
+    );
+
     setSubmitting(true);
     setError(null);
 
@@ -259,6 +272,7 @@ export default function PrescriptionsPage() {
         prescription_number: prescriptionNumber || undefined,
         type: prescriptionType || undefined,
         doctor_id: Number(doctorId),
+        radios: radios.length > 0 ? radios : undefined,
         lines: payloadLines,
       });
 
@@ -309,6 +323,33 @@ export default function PrescriptionsPage() {
       setError(err?.response?.data?.message || "Failed to reload prescriptions.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const onExportExcel = async () => {
+    try {
+      setExporting(true);
+      setError(null);
+
+      const { blob, contentDisposition } = await exportPrescriptionsExcel({
+        prescription_number: activePrescriptionSearch || undefined,
+      });
+
+      const filenameMatch = contentDisposition?.match(/filename\*=UTF-8''([^;]+)|filename="?([^";]+)"?/i);
+      const fileName = decodeURIComponent(filenameMatch?.[1] || filenameMatch?.[2] || "prescriptions.xlsx");
+
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (err: any) {
+      setError(err?.response?.data?.message || "Failed to export prescriptions.");
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -364,6 +405,14 @@ export default function PrescriptionsPage() {
               <div className="space-y-2">
                 <p className="text-sm font-medium">Date</p>
                 <Input value={systemDateLabel} readOnly />
+              </div>
+              <div className="space-y-2 lg:col-span-2">
+                <p className="text-sm font-medium">Radios (comma or new line)</p>
+                <Input
+                  value={radiosInput}
+                  onChange={(e) => setRadiosInput(e.target.value)}
+                  placeholder="Example: Thorax, Echographie abdominale"
+                />
               </div>
               <div className="space-y-2">
                 <p className="text-sm font-medium">Doctor</p>
@@ -467,6 +516,9 @@ export default function PrescriptionsPage() {
             >
               Reset
             </Button>
+            <Button type="button" variant="outline" onClick={onExportExcel} disabled={loading || exporting}>
+              {exporting ? "Exporting..." : "Export Excel"}
+            </Button>
           </div>
         </form>
         {loading ? (
@@ -482,6 +534,7 @@ export default function PrescriptionsPage() {
                     <th className="px-3 py-2">Date</th>
                     <th className="px-3 py-2">Doctor</th>
                     <th className="px-3 py-2">Type</th>
+                    <th className="px-3 py-2">Radios</th>
                     <th className="px-3 py-2">Lines</th>
                   </tr>
                 </thead>
@@ -495,6 +548,7 @@ export default function PrescriptionsPage() {
                       </td>
                       <td className="px-3 py-2">{item.doctor_name || item.doctor_id || "-"}</td>
                       <td className="px-3 py-2">{item.type || "-"}</td>
+                      <td className="px-3 py-2">{item.radios?.length ? item.radios.join(", ") : "-"}</td>
                       <td className="px-3 py-2">{item.lines.length}</td>
                     </tr>
                   ))}

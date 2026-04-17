@@ -1,9 +1,14 @@
 import { BarChart3, ExternalLink, PackageSearch, PillBottle, Route, TriangleAlert, Warehouse } from "lucide-react";
+import { useMemo } from "react";
+import { useAuth } from "@/auth/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ROLES } from "@/lib/roles";
+import type { PowerBiTopic } from "@/types/analytics";
 
 type ReportItem = {
   id: string;
+  topic: PowerBiTopic;
   title: string;
   description: string;
   icon: typeof BarChart3;
@@ -13,6 +18,7 @@ type ReportItem = {
 const reports: ReportItem[] = [
   {
     id: "stock",
+    topic: "stock",
     title: "Stock analysis",
     description: "Monitor stock levels, location balance, and availability trends in Power BI.",
     icon: Warehouse,
@@ -20,6 +26,7 @@ const reports: ReportItem[] = [
   },
   {
     id: "consumption",
+    topic: "consumption",
     title: "Product consumption",
     description: "Review product usage and distribution-driven consumption patterns.",
     icon: PillBottle,
@@ -27,6 +34,7 @@ const reports: ReportItem[] = [
   },
   {
     id: "distribution",
+    topic: "distribution",
     title: "Distribution by district",
     description: "Track operational distributions across districts and business zones.",
     icon: Route,
@@ -34,6 +42,7 @@ const reports: ReportItem[] = [
   },
   {
     id: "movements",
+    topic: "movements",
     title: "Stock movements trends",
     description: "Explore inbound and outbound movement history through BI dashboards.",
     icon: PackageSearch,
@@ -41,6 +50,7 @@ const reports: ReportItem[] = [
   },
   {
     id: "inventory",
+    topic: "inventory",
     title: "Inventory discrepancies",
     description: "Inspect count discrepancies between inventoried and system quantities.",
     icon: TriangleAlert,
@@ -49,7 +59,48 @@ const reports: ReportItem[] = [
 ];
 
 export default function ReportsList() {
-  const availableReports = reports.filter((report) => Boolean(report.url)).length;
+  const { user } = useAuth();
+
+  const allowedTopics = useMemo(() => {
+    const roleSet = new Set(user?.roles || []);
+    if (roleSet.has(ROLES.ADMIN) || roleSet.has(ROLES.RESPONSABLE_REPORTING)) {
+      return new Set<PowerBiTopic>(["stock", "consumption", "distribution", "movements", "inventory"]);
+    }
+
+    const topics = new Set<PowerBiTopic>();
+
+    if (roleSet.has(ROLES.MEDECIN)) {
+      topics.add("consumption");
+      topics.add("distribution");
+    }
+
+    if (roleSet.has(ROLES.PREPARATEUR)) {
+      topics.add("distribution");
+    }
+
+    if (roleSet.has(ROLES.GESTIONNAIRE_STOCK)) {
+      topics.add("stock");
+      topics.add("movements");
+      topics.add("inventory");
+    }
+
+    if (roleSet.has(ROLES.PHARMACIEN)) {
+      topics.add("stock");
+      topics.add("consumption");
+      topics.add("distribution");
+      topics.add("movements");
+      topics.add("inventory");
+    }
+
+    return topics;
+  }, [user?.roles]);
+
+  const visibleReports = useMemo(
+    () => reports.filter((report) => allowedTopics.has(report.topic)),
+    [allowedTopics]
+  );
+
+  const availableReports = visibleReports.filter((report) => Boolean(report.url)).length;
 
   return (
     <div className="space-y-6">
@@ -66,7 +117,7 @@ export default function ReportsList() {
             <div className="rounded-2xl border bg-white px-4 py-3 shadow-sm">
               <p className="text-sm font-medium">Configured dashboards</p>
               <p className="mt-1 text-sm text-muted-foreground">
-                {availableReports} of {reports.length} report link{reports.length === 1 ? "" : "s"} currently available.
+                {availableReports} of {visibleReports.length} report link{visibleReports.length === 1 ? "" : "s"} currently available.
               </p>
             </div>
             <div className="rounded-2xl border bg-white px-4 py-3 shadow-sm">
@@ -80,7 +131,7 @@ export default function ReportsList() {
       </Card>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {reports.map((report) => {
+        {visibleReports.map((report) => {
           const Icon = report.icon;
           const hasUrl = Boolean(report.url);
 

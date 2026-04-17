@@ -5,6 +5,7 @@ import { requireRole } from "../../middleware/requireRole.js";
 import { PERMISSIONS, ROLE_KEYS } from "../../utils/rbac.js";
 import {
   createPrescription,
+  exportPrescriptionsExcel,
   getPrescriptionById,
   listPrescriptionAgents,
   listPrescriptionDoctors,
@@ -61,6 +62,14 @@ r.get(
   requireAuth,
   requirePermission(PERMISSIONS.DISTRIBUTIONS_READ),
   listPrescriptionTypes
+);
+
+r.get(
+  "/prescriptions/export/excel",
+  requireAuth,
+  requirePermission(PERMISSIONS.DISTRIBUTIONS_READ),
+  validate(prescriptionQuerySchema, "query"),
+  exportPrescriptionsExcel
 );
 
 r.get(

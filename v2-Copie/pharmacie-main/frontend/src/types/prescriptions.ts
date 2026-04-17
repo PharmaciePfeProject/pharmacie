@@ -21,6 +21,7 @@ export type Prescription = {
   type: string | null;
   doctor_id: number | null;
   doctor_name: string | null;
+  radios: string[];
   lines: PrescriptionLine[];
 };
 
@@ -43,6 +44,7 @@ export type CreatePrescriptionPayload = {
   prescription_number?: string;
   type?: string;
   doctor_id?: number;
+  radios?: string[];
   lines: CreatePrescriptionLinePayload[];
 };
 
