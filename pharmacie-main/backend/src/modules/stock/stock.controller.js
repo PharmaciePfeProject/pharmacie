@@ -96,7 +96,9 @@ function mapStockLotRow(row) {
 }
 
 export async function listStock(req, res) {
-  const { where, binds } = buildWhere(req.query, ["product_id", "emplacement_id"]);
+  const effectiveQuery = req.query;
+
+  const { where, binds } = buildWhere(effectiveQuery, ["product_id", "emplacement_id"]);
   const result = await runPaginatedQuery({
     baseSql: `${stockSelect}${where}`,
     binds,

@@ -1,10 +1,10 @@
 import { useMemo, useState } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
-import { Archive, ArrowLeftRight, Boxes, ChartColumnBig, ChevronLeft, ChevronRight, ClipboardCheck, ClipboardList, Command, LayoutDashboard, LogOut, Package, Shield, ShoppingCart, Stethoscope, Truck, Users, } from "lucide-react";
+import { Archive, ArrowLeftRight, Boxes, ChartColumnBig, ChevronLeft, ChevronRight, ClipboardList, Command, LayoutDashboard, LogOut, Package, Shield, ShoppingCart, Stethoscope, Truck, Users, } from "lucide-react";
 import { useAuth } from "@/auth/AuthContext";
 import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/i18n/LanguageContext";
-import { PERMISSIONS, hasPermission, hasRole, } from "@/lib/roles";
+import { PERMISSIONS, ROLES, hasPermission, hasRole, } from "@/lib/roles";
 import { cn } from "@/lib/utils";
 const navSections = [
     {
@@ -53,6 +53,9 @@ const navSections = [
                 to: "/app/doctors/prescriptions",
                 icon: ClipboardList,
                 permissions: [PERMISSIONS.PRESCRIPTIONS_READ],
+                roles: [ROLES.PHARMACIEN, ROLES.MEDECIN],
+                functions: ["PRESCRIPTIONS"],
+                match: "any",
             },
             {
                 labelKey: "nav.distributions",
@@ -88,17 +91,6 @@ const navSections = [
                 to: "/app/internal-deliveries",
                 icon: Truck,
                 permissions: [PERMISSIONS.SUPPLY_READ],
-            },
-        ],
-    },
-    {
-        titleKey: "nav.control",
-        items: [
-            {
-                labelKey: "nav.inventories",
-                to: "/app/inventories",
-                icon: ClipboardCheck,
-                permissions: [PERMISSIONS.INVENTORIES_READ],
             },
         ],
     },
@@ -193,10 +185,6 @@ const pageMeta = {
         titleKey: "page.distributions.title",
         subtitleKey: "page.distributions.subtitle",
     },
-    "/app/inventories": {
-        titleKey: "page.inventories.title",
-        subtitleKey: "page.inventories.subtitle",
-    },
     "/app/external-orders": {
         titleKey: "page.externalOrders.title",
         subtitleKey: "page.externalOrders.subtitle",
@@ -252,10 +240,24 @@ export default function AppShell() {
         .map((section) => ({
         ...section,
         items: section.items.filter((item) => {
-            const allowedByPermission = !item.permissions ||
-                item.permissions.some((permission) => hasPermission(user, permission));
-            const allowedByRole = !item.roles || item.roles.some((role) => hasRole(user, role));
-            return allowedByPermission && allowedByRole;
+        const userFunction = String(user?.functionName || user?.function || "")
+          .trim()
+          .toUpperCase();
+        const checks = [];
+        if (item.permissions) {
+          checks.push(item.permissions.some((permission) => hasPermission(user, permission)));
+        }
+        if (item.roles) {
+          checks.push(item.roles.some((role) => hasRole(user, role)));
+        }
+        if (item.functions) {
+          const normalizedFunctions = item.functions.map((value) => String(value).trim().toUpperCase());
+          checks.push(normalizedFunctions.includes(userFunction));
+        }
+        if (checks.length === 0) {
+          return true;
+        }
+        return item.match === "any" ? checks.some(Boolean) : checks.every(Boolean);
         }),
     }))
         .filter((section) => section.items.length > 0);

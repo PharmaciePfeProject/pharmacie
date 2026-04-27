@@ -21,6 +21,7 @@ export const PERMISSIONS = {
     INVENTORIES_READ: "inventories.read",
     INVENTORIES_MANAGE: "inventories.manage",
     SUPPLY_READ: "supply.read",
+    SUPPLY_MANAGE: "supply.manage",
     ANALYTICS_READ: "analytics.read",
     USERS_MANAGE: "users.manage",
     DOCTORS_MANAGE: "doctors.manage",

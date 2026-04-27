@@ -1,7 +1,7 @@
 import { api } from "./axios";
 function normalizeLocation(raw) {
     return {
-        location_id: raw?.location_id ?? raw?.LOCATION_ID ?? null,
+        location_id: raw?.location_id ?? raw?.LOCATION_ID ?? raw?.id ?? raw?.ID ?? null,
         lib: raw?.lib ?? raw?.LIB ?? null,
     };
 }

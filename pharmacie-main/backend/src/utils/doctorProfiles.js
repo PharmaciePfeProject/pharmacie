@@ -101,8 +101,9 @@ export async function resolveDoctorForUser(user) {
   return findDoctorByExactName(fullName, { activeOnly: true });
 }
 
-export async function ensureDoctorProfileForName({ firstname, lastname }, conn = null) {
+export async function ensureDoctorProfileForName({ firstname, lastname, specialty }, conn = null) {
   const fullName = normalizeHumanName(`${firstname} ${lastname}`);
+  const normalizedSpecialty = String(specialty || "").trim() || null;
   if (!fullName) return null;
 
   const existing = await findDoctorByExactName(fullName);
@@ -113,6 +114,18 @@ export async function ensureDoctorProfileForName({ firstname, lastname }, conn =
       await dbQuery(`UPDATE ${DOCTOR_TABLE} SET ACTIVED = 1 WHERE ID = :id`, {
         id: existing.doctor_id,
       });
+    }
+
+    if (normalizedSpecialty) {
+      await dbQuery(
+        `UPDATE ${DOCTOR_TABLE}
+         SET SPECIALTY = :specialty
+         WHERE ID = :id`,
+        {
+          id: existing.doctor_id,
+          specialty: normalizedSpecialty,
+        }
+      );
     }
 
     return existing.doctor_id;
@@ -141,15 +154,15 @@ export async function ensureDoctorProfileForName({ firstname, lastname }, conn =
     if (hasActived) {
       await activeConn.execute(
         `INSERT INTO ${DOCTOR_TABLE} (ID, NAME, SPECIALTY, ADDRESS, TEL, ACTIVED)
-         VALUES (:id, :name, NULL, NULL, NULL, 1)`,
-        { id: doctorId, name: fullName },
+         VALUES (:id, :name, :specialty, NULL, NULL, 1)`,
+        { id: doctorId, name: fullName, specialty: normalizedSpecialty },
         { autoCommit: false }
       );
     } else {
       await activeConn.execute(
         `INSERT INTO ${DOCTOR_TABLE} (ID, NAME, SPECIALTY, ADDRESS, TEL)
-         VALUES (:id, :name, NULL, NULL, NULL)`,
-        { id: doctorId, name: fullName },
+         VALUES (:id, :name, :specialty, NULL, NULL)`,
+        { id: doctorId, name: fullName, specialty: normalizedSpecialty },
         { autoCommit: false }
       );
     }

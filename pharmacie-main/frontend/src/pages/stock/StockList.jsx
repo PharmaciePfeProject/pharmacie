@@ -2,6 +2,7 @@ import { Fragment, useEffect, useState } from "react";
 import { Boxes, MapPin, PackageSearch } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { fetchStock, fetchStockLots } from "@/api/stock";
+import { useAuth } from "@/auth/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -15,6 +16,7 @@ function parsePositiveInt(value) {
 }
 export default function StockList() {
     const { t } = useLanguage();
+  const { user } = useAuth();
     const [searchParams, setSearchParams] = useSearchParams();
     const [productId, setProductId] = useState(searchParams.get("product_id") || "");
     const [emplacementId, setEmplacementId] = useState(searchParams.get("emplacement_id") || "");
@@ -28,6 +30,11 @@ export default function StockList() {
     const [lotsRows, setLotsRows] = useState([]);
     const currentPage = parsePageParam(searchParams.get("page"));
     const currentPageSize = parsePageSizeParam(searchParams.get("pageSize"));
+    const quickTips = [
+      "Search by product or location to narrow the list.",
+      "Open lots only when you need lot-level traceability.",
+      "Use the table as the stock summary, not as a product catalog.",
+    ];
     useEffect(() => {
         let active = true;
         (async () => {
@@ -104,6 +111,24 @@ export default function StockList() {
     return (<div className="space-y-6">
       <Card className="overflow-hidden border-white/70 bg-white/95 shadow-sm">
         <CardContent className="space-y-5 p-5">
+          <div className="rounded-2xl border border-slate-200 bg-gradient-to-r from-slate-50 to-white p-4">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+              <div className="space-y-1">
+                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-primary">{t("page.stock.title")}</p>
+                <h2 className="text-2xl font-semibold tracking-tight text-slate-900">{t("page.stock.subtitle")}</h2>
+                <p className="max-w-3xl text-sm leading-6 text-muted-foreground">
+                  The page is organized for quick checks first: filter by product or location, then expand lots only when needed.
+                </p>
+              </div>
+              <div className="rounded-2xl border bg-white px-4 py-3 shadow-sm">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Quick use</p>
+                <ul className="mt-2 space-y-1 text-sm text-slate-700">
+                  {quickTips.map((tip) => (<li key={tip} className="flex gap-2"><span className="mt-1 h-2 w-2 rounded-full bg-primary" />{tip}</li>))}
+                </ul>
+              </div>
+            </div>
+          </div>
+
           <div className="grid gap-4 lg:grid-cols-3">
             <div className="rounded-2xl border bg-muted/20 p-4">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">

@@ -192,8 +192,6 @@ export default function ProductsList() {
                   <th className="px-4 py-3 text-sm font-semibold">{t("products.dci")}</th>
                   <th className="px-4 py-3 text-sm font-semibold">{t("products.price")}</th>
                   <th className="px-4 py-3 text-sm font-semibold">{t("products.vat")}</th>
-                  <th className="px-4 py-3 text-sm font-semibold">{t("products.wauCost")}</th>
-                  <th className="px-4 py-3 text-sm font-semibold">{t("products.warningStock")}</th>
                   <th className="px-4 py-3 text-sm font-semibold">{t("products.classType")}</th>
                   <th className="px-4 py-3 text-sm font-semibold">{t("common.actions")}</th>
                 </tr>
@@ -211,8 +209,6 @@ export default function ProductsList() {
                     <td className="px-4 py-3">
                       {typeof product.vat_rate === "number" ? `${product.vat_rate}%` : t("common.notAvailable")}
                     </td>
-                    <td className="px-4 py-3">{formatDecimal(product.wau_cost, t("common.notAvailable"))}</td>
-                    <td className="px-4 py-3">{product.warning_stock ?? t("common.notAvailable")}</td>
                     <td className="px-4 py-3">
                       {product.pharma_class_id ?? t("common.notAvailable")} / {product.type_id ?? t("common.notAvailable")}
                     </td>

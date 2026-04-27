@@ -3,7 +3,7 @@ import ProtectedRoute from "../components/ProtectedRoute";
 import AdminRoute from "../components/AdminRoute";
 import PermissionRoute from "../components/PermissionRoute";
 import AppLayout from "../components/AppLayout";
-import { PERMISSIONS } from "@/lib/roles";
+import { PERMISSIONS, ROLES } from "@/lib/roles";
 
 import Login from "../pages/Login";
 import Home from "../pages/Home";
@@ -15,8 +15,6 @@ import StockMovementsList from "../pages/stock-movements/StockMovementsList";
 import StockMovementDetails from "../pages/stock-movements/StockMovementDetails";
 import DistributionsList from "../pages/distribution/DistributionsList";
 import DistributionDetails from "../pages/distribution/DistributionDetails";
-import InventoriesList from "../pages/inventory/InventoriesList";
-import InventoryDetails from "../pages/inventory/InventoryDetails";
 import ExternalOrdersList from "../pages/supply-flow/ExternalOrdersList";
 import ExternalOrderDetails from "../pages/supply-flow/ExternalOrderDetails";
 import InternalOrdersList from "../pages/supply-flow/InternalOrdersList";
@@ -84,13 +82,8 @@ export const router = createBrowserRouter([
               { path: "distributions/:id", element: <DistributionDetails /> },
             ],
           },
-          {
-            element: <PermissionRoute permissions={[PERMISSIONS.INVENTORIES_READ]} />,
-            children: [
-              { path: "inventories", element: <InventoriesList /> },
-              { path: "inventories/:id", element: <InventoryDetails /> },
-            ],
-          },
+          { path: "inventories", element: <Navigate to="/app/dashboard" replace /> },
+          { path: "inventories/:id", element: <Navigate to="/app/dashboard" replace /> },
           {
             element: <PermissionRoute permissions={[PERMISSIONS.SUPPLY_READ]} />,
             children: [
@@ -112,7 +105,14 @@ export const router = createBrowserRouter([
             ],
           },
           {
-            element: <PermissionRoute permissions={[PERMISSIONS.PRESCRIPTIONS_READ]} />,
+            element: (
+              <PermissionRoute
+                permissions={[PERMISSIONS.PRESCRIPTIONS_READ]}
+                roles={[ROLES.PHARMACIEN, ROLES.MEDECIN]}
+                functions={["PRESCRIPTIONS"]}
+                match="any"
+              />
+            ),
             children: [{ path: "doctors/prescriptions", element: <PrescriptionsPage /> }],
           },
           { path: "ordonnances", element: <Navigate to="/app/doctors/prescriptions" replace /> },

@@ -29,6 +29,7 @@ export const PERMISSIONS = {
   INVENTORIES_READ: "inventories.read",
   INVENTORIES_MANAGE: "inventories.manage",
   SUPPLY_READ: "supply.read",
+  SUPPLY_MANAGE: "supply.manage",
   ANALYTICS_READ: "analytics.read",
   USERS_MANAGE: "users.manage",
   DOCTORS_MANAGE: "doctors.manage",
@@ -43,6 +44,7 @@ export const ROLE_DEFINITIONS = {
       PERMISSIONS.ADMIN_ACCESS,
       PERMISSIONS.USERS_MANAGE,
       PERMISSIONS.DOCTORS_MANAGE,
+      PERMISSIONS.SUPPLY_MANAGE,
     ],
   },
   2: {
@@ -57,6 +59,8 @@ export const ROLE_DEFINITIONS = {
       PERMISSIONS.MOVEMENTS_READ,
       PERMISSIONS.INVENTORIES_READ,
       PERMISSIONS.SUPPLY_READ,
+      PERMISSIONS.SUPPLY_MANAGE,
+      PERMISSIONS.ANALYTICS_READ,
     ],
   },
   3: {
@@ -82,6 +86,7 @@ export const ROLE_DEFINITIONS = {
       PERMISSIONS.INVENTORIES_READ,
       PERMISSIONS.INVENTORIES_MANAGE,
       PERMISSIONS.SUPPLY_READ,
+      PERMISSIONS.SUPPLY_MANAGE,
     ],
   },
   5: {
@@ -105,6 +110,39 @@ export const DEFAULT_ROLE_ID = 2;
 
 function unique(values) {
   return [...new Set(values)];
+}
+
+function normalizePharmacistFunction(functionName) {
+  const normalized = String(functionName || "").trim().toUpperCase();
+  if (normalized === "PHARMACIST") return "DEPOT";
+  return normalized;
+}
+
+export function applyFunctionScopedPermissions(roles = [], permissions = [], functionName) {
+  const scoped = new Set(permissions);
+
+  if (!roles.includes(ROLE_KEYS.PHARMACIEN)) {
+    return [...scoped];
+  }
+
+  const pharmacistFunction = normalizePharmacistFunction(functionName);
+
+  if (pharmacistFunction === "DEPOT") {
+    scoped.delete(PERMISSIONS.PRESCRIPTIONS_APPROVE);
+    scoped.add(PERMISSIONS.SUPPLY_MANAGE);
+    return [...scoped];
+  }
+
+  if (pharmacistFunction === "PRESCRIPTIONS") {
+    // Keep SUPPLY_MANAGE so internal-order workflows can pass route-level permission checks.
+    // Function-specific controller checks still prevent forbidden supply actions (e.g. external orders).
+    scoped.add(PERMISSIONS.PRESCRIPTIONS_APPROVE);
+    return [...scoped];
+  }
+
+  scoped.delete(PERMISSIONS.SUPPLY_MANAGE);
+  scoped.delete(PERMISSIONS.PRESCRIPTIONS_APPROVE);
+  return [...scoped];
 }
 
 export function getRoleDefinitionById(roleId) {
@@ -192,6 +230,11 @@ export function normalizeAuthPayload(payload = {}) {
 
   if (hasStringRoles) {
     const access = buildAccessFromRoleKeys(payload.roles);
+    const scopedPermissions = applyFunctionScopedPermissions(
+      access.roles,
+      access.permissions,
+      payload.functionName ?? payload.function,
+    );
     return {
       ...payload,
       roleIds:
@@ -199,7 +242,7 @@ export function normalizeAuthPayload(payload = {}) {
           ? payload.roleIds
           : access.roleIds,
       roles: access.roles,
-      permissions: access.permissions,
+      permissions: scopedPermissions,
     };
   }
 
@@ -210,12 +253,17 @@ export function normalizeAuthPayload(payload = {}) {
   const access = buildAccessFromRoleIds(
     Array.isArray(rawRoleIds) ? rawRoleIds : [],
   );
+  const scopedPermissions = applyFunctionScopedPermissions(
+    access.roles,
+    access.permissions,
+    payload.functionName ?? payload.function,
+  );
 
   return {
     ...payload,
     roleIds: access.roleIds,
     roles: access.roles,
-    permissions: access.permissions,
+    permissions: scopedPermissions,
   };
 }
 

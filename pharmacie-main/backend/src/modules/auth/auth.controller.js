@@ -1,14 +1,12 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { dbQuery } from "../../config/db.js";
-import { buildAccessFromRoleIds } from "../../utils/rbac.js";
+import { applyFunctionScopedPermissions, buildAccessFromRoleIds } from "../../utils/rbac.js";
+import { getAssignedDepotByUserId } from "../../utils/pharmacistDepots.js";
 
 function getSchemaName() {
   const rawSchema = process.env.ORACLE_SCHEMA || process.env.ORACLE_USER || "";
-  return rawSchema
-    .trim()
-    .toUpperCase()
-    .replace(/[^A-Z0-9_]/g, "");
+  return rawSchema.trim().toUpperCase().replace(/[^A-Z0-9_]/g, "");
 }
 
 function withSchema(objectName) {
@@ -34,8 +32,16 @@ async function getUserRoleIds(userId) {
   return rolesRes.rows.map((row) => row.ROLES_ID);
 }
 
-function shapeAuthUser(user, roleIds) {
+function shapeAuthUser(user, roleIds, assignedDepot = null) {
   const access = buildAccessFromRoleIds(roleIds);
+  const scopedPermissions = applyFunctionScopedPermissions(
+    access.roles,
+    access.permissions,
+    user.FUNCTION,
+  );
+  const depotId = assignedDepot?.locationId ?? user.ASSIGNED_DEPOT_ID ?? null;
+  const depotLabel =
+    assignedDepot?.locationLabel ?? user.ASSIGNED_DEPOT_LABEL ?? null;
 
   return {
     id: user.ID,
@@ -45,23 +51,32 @@ function shapeAuthUser(user, roleIds) {
     lastname: user.LASTNAME,
     function: user.FUNCTION,
     functionName: user.FUNCTION,
+    assignedDepotId: depotId,
+    assignedDepotLabel: depotLabel,
     actived: user.ACTIVED,
     roleIds: access.roleIds,
     roles: access.roles,
-    permissions: access.permissions,
+    permissions: scopedPermissions,
   };
 }
 
 function signUserToken(user, roleIds) {
   const access = buildAccessFromRoleIds(roleIds);
+  const functionName = user.FUNCTION ?? null;
+  const scopedPermissions = applyFunctionScopedPermissions(
+    access.roles,
+    access.permissions,
+    functionName,
+  );
 
   return signToken({
     sub: user.ID,
     email: user.EMAIL,
     username: user.USERNAME,
+    functionName,
     roleIds: access.roleIds,
     roles: access.roles,
-    permissions: access.permissions,
+    permissions: scopedPermissions,
   });
 }
 
@@ -76,22 +91,27 @@ export async function login(req, res) {
     { v: normalizedLogin },
   );
 
-  if (userRes.rows.length === 0)
+  if (userRes.rows.length === 0) {
     return res.status(401).json({ message: "Invalid credentials" });
+  }
 
   const user = userRes.rows[0];
-  if (user.ACTIVED !== 1)
+  if (user.ACTIVED !== 1) {
     return res.status(403).json({ message: "User disabled" });
+  }
 
   const ok = await bcrypt.compare(password, user.PASSWORD);
-  if (!ok) return res.status(401).json({ message: "Invalid credentials" });
+  if (!ok) {
+    return res.status(401).json({ message: "Invalid credentials" });
+  }
 
   const roleIds = await getUserRoleIds(user.ID);
+  const assignedDepot = await getAssignedDepotByUserId(user.ID);
   const token = signUserToken(user, roleIds);
 
   return res.json({
     token,
-    user: shapeAuthUser(user, roleIds),
+    user: shapeAuthUser(user, roleIds, assignedDepot),
   });
 }
 
@@ -114,11 +134,11 @@ export async function me(req, res) {
   }
 
   const user = userRes.rows[0];
-
   const roleIds = await getUserRoleIds(userId);
+  const assignedDepot = await getAssignedDepotByUserId(userId);
 
   return res.json({
-    user: shapeAuthUser(user, roleIds),
+    user: shapeAuthUser(user, roleIds, assignedDepot),
   });
 }
 
@@ -146,21 +166,26 @@ export async function updateMe(req, res) {
       ? updates.functionName.trim() || null
       : undefined;
 
-  if (normalizedEmail || normalizedUsername) {
+  const duplicateConditions = [];
+  const duplicateBinds = { id: userId };
+
+  if (normalizedEmail !== undefined) {
+    duplicateConditions.push("LOWER(EMAIL) = LOWER(:email)");
+    duplicateBinds.email = normalizedEmail;
+  }
+
+  if (normalizedUsername !== undefined) {
+    duplicateConditions.push("LOWER(USERNAME) = LOWER(:username)");
+    duplicateBinds.username = normalizedUsername;
+  }
+
+  if (duplicateConditions.length > 0) {
     const duplicateRes = await dbQuery(
       `SELECT ID
        FROM ${USERS_TABLE}
        WHERE ID <> :id
-         AND (
-           (${normalizedEmail ? "LOWER(EMAIL) = LOWER(:email)" : "1 = 0"})
-           OR
-           (${normalizedUsername ? "LOWER(USERNAME) = LOWER(:username)" : "1 = 0"})
-         )`,
-      {
-        id: userId,
-        email: normalizedEmail,
-        username: normalizedUsername,
-      },
+         AND (${duplicateConditions.join(" OR ")})`,
+      duplicateBinds,
     );
 
     if (duplicateRes.rows.length > 0) {
@@ -215,8 +240,10 @@ export async function updateMe(req, res) {
   }
 
   const roleIds = await getUserRoleIds(userId);
+  const assignedDepot = await getAssignedDepotByUserId(userId);
+
   return res.json({
-    user: shapeAuthUser(userRes.rows[0], roleIds),
+    user: shapeAuthUser(userRes.rows[0], roleIds, assignedDepot),
   });
 }
 
@@ -243,7 +270,7 @@ export async function updateMyPassword(req, res) {
   const isValid = await bcrypt.compare(currentPassword, user.PASSWORD);
 
   if (!isValid) {
-    return res.status(400).json({ message: "Current password is invalid" });
+    return res.status(401).json({ message: "Current password is invalid" });
   }
 
   const hashedPassword = await bcrypt.hash(newPassword, 10);
@@ -251,8 +278,11 @@ export async function updateMyPassword(req, res) {
     `UPDATE ${USERS_TABLE}
      SET PASSWORD = :password
      WHERE ID = :id`,
-    { id: userId, password: hashedPassword },
+    {
+      id: userId,
+      password: hashedPassword,
+    },
   );
 
-  return res.json({ message: "Password updated successfully" });
+  return res.json({ message: "Password updated" });
 }

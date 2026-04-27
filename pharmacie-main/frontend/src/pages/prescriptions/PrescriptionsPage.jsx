@@ -12,6 +12,7 @@ import {
   fetchPrescriptions,
 } from "@/api/prescriptions";
 import { fetchProducts } from "@/api/products";
+import { fetchStock } from "@/api/stock";
 import { useAuth } from "@/auth/AuthContext";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -141,6 +142,7 @@ export default function PrescriptionsPage() {
     const [approvalBusyId, setApprovalBusyId] = useState(null);
     const [expandedPendingId, setExpandedPendingId] = useState(null);
     const [pendingDetailsById, setPendingDetailsById] = useState({});
+    const [pendingStockById, setPendingStockById] = useState({});
     const [rejectingId, setRejectingId] = useState(null);
     const [rejectionNotesById, setRejectionNotesById] = useState({});
     const [expandedExistingId, setExpandedExistingId] = useState(null);
@@ -155,6 +157,11 @@ export default function PrescriptionsPage() {
         { label: t("prescriptions.card.products"), value: products.length, tone: "emerald" },
         { label: t("prescriptions.card.results"), value: items.length, tone: "slate" },
     ], [items.length, products.length, selectableDoctors.length, t]);
+    const quickSteps = [
+      t("prescriptions.quick.one"),
+      t("prescriptions.quick.two"),
+      t("prescriptions.quick.three"),
+    ];
     const selectedAgent = useMemo(() => agents.find((agent) => String(agent.agent_id) === agentId.trim()) || null, [agentId, agents]);
     const selectedAgentName = useMemo(() => selectedAgent?.agent_name || selectedAgent?.agent_situation || patientCard?.agent_name || "-", [patientCard?.agent_name, selectedAgent]);
     const agentOptions = useMemo(() => agents.map((agent) => ({
@@ -558,6 +565,26 @@ export default function PrescriptionsPage() {
             ...prev,
             [prescriptionId]: item,
           }));
+
+          const productIds = Array.from(new Set((item?.lines || [])
+            .map((line) => Number(line.product_id))
+            .filter((productId) => Number.isInteger(productId) && productId > 0)));
+
+          if (productIds.length > 0) {
+            const stockEntries = await Promise.all(productIds.map(async (productId) => {
+              const stockRes = await fetchStock({ product_id: productId, page: 1, pageSize: 500 });
+              const totalStockQty = (stockRes?.items || []).reduce(
+                (sum, stockRow) => sum + Number(stockRow.quantity || 0),
+                0,
+              );
+              return [String(productId), totalStockQty];
+            }));
+
+            setPendingStockById((prev) => ({
+              ...prev,
+              [prescriptionId]: Object.fromEntries(stockEntries),
+            }));
+          }
         }
         catch (err) {
           setError(err?.response?.data?.message || "Unable to load prescription details.");
@@ -629,6 +656,24 @@ export default function PrescriptionsPage() {
               <p className="text-sm font-medium">{card.label}</p>
               <p className="mt-2 text-2xl font-semibold">{card.value}</p>
             </div>))}
+        </div>
+
+        <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <h3 className="text-sm font-semibold text-slate-900">{t("prescriptions.quickTitle")}</h3>
+              <p className="mt-1 text-sm leading-6 text-muted-foreground">{t("prescriptions.quickSubtitle")}</p>
+            </div>
+            <p className="text-xs text-muted-foreground">{t("prescriptions.quickHint")}</p>
+          </div>
+          <div className="mt-4 grid gap-3 md:grid-cols-3">
+            {quickSteps.map((step, index) => (
+              <div key={step} className="rounded-xl border bg-white p-4 shadow-sm">
+                <p className="text-xs font-semibold uppercase tracking-wide text-primary">{t("prescriptions.quickStepLabel", { index: index + 1 })}</p>
+                <p className="mt-2 text-sm leading-6 text-slate-700">{step}</p>
+              </div>
+            ))}
+          </div>
         </div>
 
         <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4">
@@ -864,7 +909,10 @@ export default function PrescriptionsPage() {
                                       </thead>
                                       <tbody>
                                         {existingDetailsById[item.prescription_id].lines.map((line) => (<tr key={line.line_id} className="border-t">
-                                            <td className="px-2 py-2">{line.product_lib || line.product_id}</td>
+                                            <td className="px-2 py-2">
+                                              <div className="font-medium text-slate-900">{line.product_lib || "-"}</div>
+                                              <div className="text-xs text-slate-500">ID: {line.product_id ?? "-"}</div>
+                                            </td>
                                             <td className="px-2 py-2">{line.total_qt}</td>
                                             <td className="px-2 py-2">{line.days ?? "-"}</td>
                                             <td className="px-2 py-2">{line.periodicity || "-"}</td>
@@ -951,18 +999,46 @@ export default function PrescriptionsPage() {
                                       <thead className="bg-slate-100">
                                         <tr>
                                           <th className="px-2 py-2 text-left">Product</th>
-                                          <th className="px-2 py-2 text-left">Qty</th>
+                                          <th className="px-2 py-2 text-left">Requested qty</th>
+                                          <th className="px-2 py-2 text-left">Stock qty</th>
+                                          <th className="px-2 py-2 text-left">Comparison</th>
                                           <th className="px-2 py-2 text-left">Days</th>
                                           <th className="px-2 py-2 text-left">Posologie</th>
                                         </tr>
                                       </thead>
                                       <tbody>
-                                        {pendingDetailsById[entry.prescription_id].lines.map((line) => (<tr key={line.line_id} className="border-t">
-                                            <td className="px-2 py-2">{line.product_lib || line.product_id}</td>
-                                            <td className="px-2 py-2">{line.total_qt}</td>
-                                            <td className="px-2 py-2">{line.days ?? "-"}</td>
-                                            <td className="px-2 py-2">{line.posologie || "-"}</td>
-                                          </tr>))}
+                                        {pendingDetailsById[entry.prescription_id].lines.map((line) => {
+                                          const requestedQty = Number(line.total_qt || 0);
+                                          const stockQtyRaw = pendingStockById[entry.prescription_id]?.[String(line.product_id)];
+                                          const stockQty = stockQtyRaw === undefined ? null : Number(stockQtyRaw || 0);
+                                          const hasEnoughStock = stockQty !== null && stockQty >= requestedQty;
+
+                                          return (
+                                            <tr key={line.line_id} className="border-t">
+                                              <td className="px-2 py-2">
+                                                <div className="font-medium text-slate-900">{line.product_lib || "-"}</div>
+                                                <div className="text-xs text-slate-500">ID: {line.product_id ?? "-"}</div>
+                                              </td>
+                                              <td className="px-2 py-2">{line.total_qt}</td>
+                                              <td className="px-2 py-2">{stockQty === null ? "..." : stockQty}</td>
+                                              <td className="px-2 py-2">
+                                                {stockQty === null ? (
+                                                  <span className="text-xs text-muted-foreground">Checking...</span>
+                                                ) : hasEnoughStock ? (
+                                                  <span className="inline-flex rounded-full bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-700">
+                                                    Enough
+                                                  </span>
+                                                ) : (
+                                                  <span className="inline-flex rounded-full bg-rose-100 px-2 py-1 text-xs font-semibold text-rose-700">
+                                                    Insufficient
+                                                  </span>
+                                                )}
+                                              </td>
+                                              <td className="px-2 py-2">{line.days ?? "-"}</td>
+                                              <td className="px-2 py-2">{line.posologie || "-"}</td>
+                                            </tr>
+                                          );
+                                        })}
                                       </tbody>
                                     </table>
                                   </div>

@@ -36,7 +36,7 @@ function validate(schema, target = "body") {
 r.get(
   "/locations",
   requireAuth,
-  requirePermission(PERMISSIONS.STOCK_READ),
+  requirePermission(PERMISSIONS.STOCK_READ, PERMISSIONS.USERS_MANAGE),
   listLocations,
 );
 r.post(

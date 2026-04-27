@@ -185,6 +185,10 @@ function isPharmacienUser(user) {
   return Array.isArray(user?.roles) && user.roles.includes(ROLE_KEYS.PHARMACIEN);
 }
 
+function normalizePharmacistFunction(functionName) {
+  return String(functionName || "").trim().toUpperCase();
+}
+
 async function requireConnectedDoctor(user) {
   const connectedDoctor = await resolveDoctorForUser(user);
 
@@ -469,7 +473,8 @@ async function pickPharmacistForApproval(conn, agentSituation) {
        GROUP BY pa.ASSIGNED_PHARMACIST_ID
      ) p ON p.user_id = u.ID
      WHERE ur.ROLES_ID = :role_id
-       AND NVL(u.ACTIVED, 1) = 1`,
+       AND NVL(u.ACTIVED, 1) = 1
+       AND UPPER(TRIM(NVL(u.FUNCTION, ''))) = 'PRESCRIPTIONS'`,
     { role_id: PHARMACIEN_ROLE_ID }
   );
 
@@ -510,6 +515,13 @@ async function pickPharmacistForApproval(conn, agentSituation) {
 async function requirePharmacienOrThrow(user) {
   if (!isPharmacienUser(user)) {
     const error = new Error("Only pharmacist users can approve prescriptions.");
+    error.status = 403;
+    throw error;
+  }
+
+  const functionName = normalizePharmacistFunction(user?.functionName ?? user?.function);
+  if (functionName !== "PRESCRIPTIONS") {
+    const error = new Error("Only pharmacists assigned to PRESCRIPTIONS can approve prescriptions.");
     error.status = 403;
     throw error;
   }

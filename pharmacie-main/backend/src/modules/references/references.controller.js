@@ -39,7 +39,12 @@ export async function listLocations(req, res) {
   const result = await dbQuery(
     `SELECT ID AS location_id, LIB AS lib FROM ${LOCATION_TABLE} ORDER BY ID`
   );
-  res.json({ items: result.rows });
+  const items = result.rows.map((row) => ({
+    location_id: row.LOCATION_ID ?? row.location_id ?? row.ID ?? row.id,
+    lib: row.LIB ?? row.lib ?? null,
+  }));
+
+  res.json({ items });
 }
 
 export async function createLocation(req, res) {

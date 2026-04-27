@@ -3,17 +3,26 @@ import { requireAuth } from "../../middleware/authJwt.js";
 import { requirePermission } from "../../middleware/requirePermission.js";
 import { PERMISSIONS } from "../../utils/rbac.js";
 import {
+  externalInvoiceCreateSchema,
   entityParamsSchema,
+  externalOrderCreateSchema,
   externalOrderQuerySchema,
+  internalOrderCreateSchema,
+  internalOrderDecisionSchema,
   internalDeliveryQuerySchema,
   internalOrderQuerySchema,
   receptionQuerySchema,
 } from "./supply-flow.schemas.js";
 import {
+  createExternalOrder,
+  createInternalOrder,
+  decideInternalOrder,
   getExternalOrderById,
   getInternalDeliveryById,
   getInternalOrderById,
   getReceptionById,
+  listPendingInternalOrderApprovals,
+  registerExternalInvoice,
   listExternalOrders,
   listInternalDeliveries,
   listInternalOrders,
@@ -43,12 +52,27 @@ r.get(
   validate(externalOrderQuerySchema, "query"),
   listExternalOrders,
 );
+r.post(
+  "/external-orders",
+  requireAuth,
+  requirePermission(PERMISSIONS.SUPPLY_MANAGE),
+  validate(externalOrderCreateSchema),
+  createExternalOrder,
+);
 r.get(
   "/external-orders/:id",
   requireAuth,
   requirePermission(PERMISSIONS.SUPPLY_READ),
   validate(entityParamsSchema, "params"),
   getExternalOrderById,
+);
+r.post(
+  "/external-orders/:id/invoice",
+  requireAuth,
+  requirePermission(PERMISSIONS.SUPPLY_MANAGE),
+  validate(entityParamsSchema, "params"),
+  validate(externalInvoiceCreateSchema),
+  registerExternalInvoice,
 );
 r.get(
   "/internal-orders",
@@ -57,12 +81,33 @@ r.get(
   validate(internalOrderQuerySchema, "query"),
   listInternalOrders,
 );
+r.post(
+  "/internal-orders",
+  requireAuth,
+  requirePermission(PERMISSIONS.SUPPLY_MANAGE),
+  validate(internalOrderCreateSchema),
+  createInternalOrder,
+);
+r.get(
+  "/internal-orders/pending-approvals",
+  requireAuth,
+  requirePermission(PERMISSIONS.SUPPLY_MANAGE),
+  listPendingInternalOrderApprovals,
+);
 r.get(
   "/internal-orders/:id",
   requireAuth,
   requirePermission(PERMISSIONS.SUPPLY_READ),
   validate(entityParamsSchema, "params"),
   getInternalOrderById,
+);
+r.post(
+  "/internal-orders/:id/decision",
+  requireAuth,
+  requirePermission(PERMISSIONS.SUPPLY_MANAGE),
+  validate(entityParamsSchema, "params"),
+  validate(internalOrderDecisionSchema),
+  decideInternalOrder,
 );
 r.get(
   "/receptions",

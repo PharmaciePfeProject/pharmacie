@@ -25,6 +25,15 @@ export function errorHandler(err, req, res, next) {
       });
     }
 
+    // ORA-01109 / ORA-01033 (database not open / startup or shutdown in progress)
+    if (err.errorNum === 1109 || err.errorNum === 1033) {
+      return res.status(503).json({
+        message: "Database unavailable (instance not open)",
+        code: err.code,
+        errorNum: err.errorNum,
+      });
+    }
+
     return res.status(500).json({
       message: "Database error",
       code: err.code,

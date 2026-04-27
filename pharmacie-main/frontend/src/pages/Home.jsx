@@ -1,4 +1,4 @@
-import { Activity, ArrowLeftRight, ArrowRight, Boxes, ChartColumnBig, ClipboardCheck, Package, Truck, } from "lucide-react";
+import { Activity, ArrowLeftRight, ArrowRight, Boxes, ChartColumnBig, CheckCircle2, ClipboardCheck, Package, ShieldCheck, Truck, } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/auth/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -54,6 +54,11 @@ export default function Home() {
     const { t } = useLanguage();
     const visibleCards = workspaceCards.filter((item) => hasPermission(user, item.permission));
     const canSeeAnalytics = hasPermission(user, PERMISSIONS.ANALYTICS_READ);
+    const quickStartSteps = [
+      { label: t("home.quickStep.oneLabel"), text: t("home.quickStep.one") },
+      { label: t("home.quickStep.twoLabel"), text: t("home.quickStep.two") },
+      { label: t("home.quickStep.threeLabel"), text: t("home.quickStep.three") },
+    ];
     return (<div className="space-y-6">
       <Card className="rounded-xl border bg-white shadow-sm">
         <CardHeader className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
@@ -66,6 +71,19 @@ export default function Home() {
             <CardDescription className="max-w-3xl text-sm leading-7">
               {t("home.subtitle")}
             </CardDescription>
+            <div className="flex flex-wrap gap-3 pt-2">
+              {canSeeAnalytics ? (<Button asChild className="rounded-2xl">
+                  <Link to="/app/bi">
+                    {t("home.openBi")}
+                    <ArrowRight className="ml-2 h-4 w-4"/>
+                  </Link>
+                </Button>) : null}
+              <Button asChild variant="outline" className="rounded-2xl">
+                <Link to={visibleCards[0]?.to || "/app/profile"}>
+                  {t("home.openModule")}
+                </Link>
+              </Button>
+            </div>
           </div>
 
           <div className="grid gap-3 rounded-3xl bg-muted/30 p-5">
@@ -74,6 +92,7 @@ export default function Home() {
               <p className="mt-1 text-sm text-muted-foreground">
                 {user?.firstname} {user?.lastname} ({user?.username})
               </p>
+              <p className="mt-2 text-xs text-muted-foreground">{t("home.userHint")}</p>
             </div>
             <div className="rounded-2xl border bg-white px-4 py-3 shadow-sm">
               <p className="text-sm font-medium">{t("home.visibleModules")}</p>
@@ -92,6 +111,29 @@ export default function Home() {
               </Button>)}
           </div>
         </CardHeader>
+      </Card>
+
+      <Card className="rounded-xl border border-slate-200 bg-white shadow-sm">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-xl">{t("home.quickTitle")}</CardTitle>
+          <CardDescription>{t("home.quickSubtitle")}</CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-3 md:grid-cols-3">
+          {quickStartSteps.map((step, index) => {
+            const StepIcon = index === 0 ? CheckCircle2 : index === 1 ? ShieldCheck : Activity;
+            return (<div key={step.label} className="rounded-2xl border bg-slate-50 p-4">
+                <div className="flex items-start gap-3">
+                  <div className="rounded-full bg-primary/10 p-2 text-primary">
+                    <StepIcon className="h-4 w-4"/>
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900">{step.label}</p>
+                    <p className="mt-1 text-sm leading-6 text-muted-foreground">{step.text}</p>
+                  </div>
+                </div>
+              </div>);
+          })}
+        </CardContent>
       </Card>
 
       <section className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
