@@ -34,6 +34,22 @@ function normalizeCsvValue(value) {
     const text = String(value ?? "").replace(/"/g, '""');
     return `"${text}"`;
 }
+function escapeHtml(value) {
+    return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+}
+function formatDateTime(value) {
+    if (!value)
+        return "N/A";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime()))
+        return String(value);
+    return date.toLocaleString();
+}
 function getApprovalTone(status) {
   if (status === "APPROVED")
     return "bg-emerald-100 text-emerald-700";
@@ -182,6 +198,255 @@ export default function PrescriptionsPage() {
             return null;
         return selectedAgent ? null : t("prescriptions.invalidAgent");
     }, [agentId, selectedAgent, t]);
+    const printMedicalRequest = (prescription, requestType, requestLabel) => {
+        if (!prescription || !requestLabel)
+            return;
+        const issuedAt = formatDateTime(prescription.prescription_date);
+        const printIssuedAt = formatDateTime(new Date().toISOString());
+        const doctorName = prescription.doctor_name || [user?.firstname, user?.lastname].filter(Boolean).join(" ").trim() || user?.username || "N/A";
+        const patientName = prescription.agent_name || prescription.agent_situation || "N/A";
+        const requestTypeLabel = requestType === "RADIO" ? "Radiology request" : "Laboratory analysis request";
+        const badgeLabel = requestType === "RADIO" ? "RADIO" : "ANALYSIS";
+        const printableRows = [
+            ["Prescription number", prescription.prescription_number || prescription.prescription_id || "N/A"],
+            ["Prescription type", prescription.type || "N/A"],
+            ["Prescription date", issuedAt],
+            ["Doctor", doctorName],
+            ["Doctor account", user?.username || prescription.doctor_id || "N/A"],
+            ["Agent ID", prescription.agent_id || "N/A"],
+            ["Agent / patient", patientName],
+            ["Patient situation", prescription.agent_situation || "N/A"],
+            ["Approval status", prescription.approval?.status || "PENDING"],
+            ["Printed on", printIssuedAt],
+        ];
+        const rowsMarkup = printableRows
+            .map(([label, value]) => `
+          <div class="meta-row">
+            <div class="meta-label">${escapeHtml(label)}</div>
+            <div class="meta-value">${escapeHtml(value)}</div>
+          </div>
+        `)
+            .join("");
+        const html = `
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>${escapeHtml(requestTypeLabel)} - ${escapeHtml(requestLabel)}</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --ink: #0f172a;
+        --muted: #475569;
+        --line: #dbe4ea;
+        --accent: #0f766e;
+        --accent-soft: #ecfeff;
+        --paper: #ffffff;
+        --panel: #f8fafc;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: #e2e8f0;
+        color: var(--ink);
+        font-family: "Segoe UI", Arial, sans-serif;
+      }
+      .page {
+        width: 210mm;
+        min-height: 297mm;
+        margin: 0 auto;
+        background: var(--paper);
+        padding: 18mm 16mm;
+      }
+      .hero {
+        border: 1px solid var(--line);
+        border-radius: 20px;
+        overflow: hidden;
+      }
+      .hero-top {
+        display: flex;
+        justify-content: space-between;
+        gap: 24px;
+        padding: 18px 20px;
+        background: linear-gradient(135deg, #0f766e 0%, #115e59 100%);
+        color: white;
+      }
+      .hero-top h1 {
+        margin: 0;
+        font-size: 28px;
+        line-height: 1.1;
+      }
+      .hero-top p {
+        margin: 8px 0 0;
+        color: rgba(255,255,255,0.84);
+        font-size: 13px;
+      }
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 110px;
+        padding: 10px 14px;
+        border: 1px solid rgba(255,255,255,0.24);
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.18em;
+      }
+      .hero-body {
+        padding: 20px;
+        background: linear-gradient(180deg, var(--accent-soft) 0%, #ffffff 100%);
+      }
+      .request-box {
+        margin-bottom: 18px;
+        border: 1px solid #99f6e4;
+        border-radius: 18px;
+        background: white;
+        padding: 18px;
+      }
+      .request-label {
+        margin: 0 0 8px;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.16em;
+        color: var(--accent);
+        text-transform: uppercase;
+      }
+      .request-value {
+        margin: 0;
+        font-size: 24px;
+        font-weight: 700;
+        line-height: 1.3;
+      }
+      .meta-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+      .meta-row {
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: var(--panel);
+        padding: 14px;
+      }
+      .meta-label {
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-bottom: 8px;
+      }
+      .meta-value {
+        font-size: 15px;
+        font-weight: 600;
+        line-height: 1.4;
+        word-break: break-word;
+      }
+      .footer {
+        margin-top: 28px;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 18px;
+      }
+      .signature {
+        border-top: 1px solid var(--line);
+        padding-top: 12px;
+        min-height: 84px;
+      }
+      .signature-title {
+        font-size: 12px;
+        font-weight: 700;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+      }
+      .signature-name {
+        margin-top: 36px;
+        font-size: 14px;
+        font-weight: 600;
+      }
+      .note {
+        margin-top: 18px;
+        padding: 14px 16px;
+        border-radius: 14px;
+        background: #f8fafc;
+        border: 1px dashed #cbd5e1;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.6;
+      }
+      @media print {
+        body { background: white; }
+        .page {
+          width: auto;
+          min-height: auto;
+          margin: 0;
+          padding: 0;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <section class="hero">
+        <div class="hero-top">
+          <div>
+            <h1>${escapeHtml(requestTypeLabel)}</h1>
+            <p>Prescription support document generated from the medical prescription workspace.</p>
+          </div>
+          <div class="badge">${escapeHtml(badgeLabel)}</div>
+        </div>
+        <div class="hero-body">
+          <div class="request-box">
+            <p class="request-label">${escapeHtml(requestType === "RADIO" ? "Requested exam" : "Requested analysis")}</p>
+            <p class="request-value">${escapeHtml(requestLabel)}</p>
+          </div>
+          <div class="meta-grid">${rowsMarkup}</div>
+          <div class="note">
+            This document certifies that the named medical request was issued from the prescription record shown above.
+            The patient or receiving agent should present this document when attending the exam or analysis.
+          </div>
+          <div class="footer">
+            <div class="signature">
+              <div class="signature-title">Issued by doctor</div>
+              <div class="signature-name">${escapeHtml(doctorName)}</div>
+            </div>
+            <div class="signature">
+              <div class="signature-title">Patient / agent</div>
+              <div class="signature-name">${escapeHtml(patientName)}</div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+    <script>
+      window.onload = function () {
+        window.print();
+      };
+    </script>
+  </body>
+</html>`;
+        const printBlob = new Blob([html], { type: "text/html;charset=utf-8" });
+        const printUrl = window.URL.createObjectURL(printBlob);
+        const printWindow = window.open(printUrl, "_blank", "width=980,height=820");
+        if (!printWindow) {
+            window.URL.revokeObjectURL(printUrl);
+            setError("Unable to open the print window. Please allow pop-ups and try again.");
+            return;
+        }
+        const cleanup = () => {
+            window.setTimeout(() => {
+                window.URL.revokeObjectURL(printUrl);
+            }, 60000);
+        };
+        if (printWindow.document?.readyState === "complete") {
+            cleanup();
+        }
+        else {
+            printWindow.addEventListener("load", cleanup, { once: true });
+        }
+    };
     const loadData = async (
       page = 1,
       pageSize = 10,
@@ -925,15 +1190,25 @@ export default function PrescriptionsPage() {
                                   <div className="grid gap-3 sm:grid-cols-2">
                                     <div className="rounded-lg border border-slate-200 bg-white p-3">
                                       <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Radios</p>
-                                      {existingDetailsById[item.prescription_id].radios?.length ? (<ul className="mt-2 list-disc space-y-1 pl-5 text-sm">
-                                          {existingDetailsById[item.prescription_id].radios.map((radio, index) => (<li key={`${item.prescription_id}-radio-${index}`}>{radio}</li>))}
-                                        </ul>) : (<p className="mt-2 text-sm text-muted-foreground">No radios requested.</p>)}
+                                      {existingDetailsById[item.prescription_id].radios?.length ? (<div className="mt-2 space-y-2">
+                                          {existingDetailsById[item.prescription_id].radios.map((radio, index) => (<div key={`${item.prescription_id}-radio-${index}`} className="flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 sm:flex-row sm:items-center sm:justify-between">
+                                              <div className="text-sm font-medium text-slate-800">{radio}</div>
+                                              {isDoctorUser ? (<Button size="sm" variant="outline" onClick={() => printMedicalRequest(existingDetailsById[item.prescription_id], "RADIO", radio)}>
+                                                  Print PDF
+                                                </Button>) : null}
+                                            </div>))}
+                                        </div>) : (<p className="mt-2 text-sm text-muted-foreground">No radios requested.</p>)}
                                     </div>
                                     <div className="rounded-lg border border-slate-200 bg-white p-3">
                                       <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Analyses</p>
-                                      {existingDetailsById[item.prescription_id].analyses?.length ? (<ul className="mt-2 list-disc space-y-1 pl-5 text-sm">
-                                          {existingDetailsById[item.prescription_id].analyses.map((analysis, index) => (<li key={`${item.prescription_id}-analysis-${index}`}>{analysis}</li>))}
-                                        </ul>) : (<p className="mt-2 text-sm text-muted-foreground">No analyses requested.</p>)}
+                                      {existingDetailsById[item.prescription_id].analyses?.length ? (<div className="mt-2 space-y-2">
+                                          {existingDetailsById[item.prescription_id].analyses.map((analysis, index) => (<div key={`${item.prescription_id}-analysis-${index}`} className="flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 sm:flex-row sm:items-center sm:justify-between">
+                                              <div className="text-sm font-medium text-slate-800">{analysis}</div>
+                                              {isDoctorUser ? (<Button size="sm" variant="outline" onClick={() => printMedicalRequest(existingDetailsById[item.prescription_id], "ANALYSIS", analysis)}>
+                                                  Print PDF
+                                                </Button>) : null}
+                                            </div>))}
+                                        </div>) : (<p className="mt-2 text-sm text-muted-foreground">No analyses requested.</p>)}
                                     </div>
                                   </div>
                                 </div>)}
