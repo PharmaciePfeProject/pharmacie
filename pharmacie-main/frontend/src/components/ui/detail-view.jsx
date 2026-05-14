@@ -51,7 +51,7 @@ export function DetailSection({ title, description, children, }) {
       <div>{children}</div>
     </section>);
 }
-export function formatDetailValue(value, fallback = "Not available") {
+export function formatDetailValue(value, fallback = "N/A") {
     if (value === null || value === undefined || value === "") {
         return fallback;
     }

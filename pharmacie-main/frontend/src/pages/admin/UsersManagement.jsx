@@ -188,6 +188,9 @@ export default function UsersManagement() {
         setError(null);
         const updatedUser = await updateUserStatus(item.id, nextStatus);
         setUsers((current) => current.map((entry) => entry.id === updatedUser.id ? updatedUser : entry));
+        if (editingUser?.id === updatedUser.id) {
+          setEditingUser(updatedUser);
+        }
         setSuccessMessage(`${t("adminUsers.statusUpdatedFor")} ${updatedUser.firstname} ${updatedUser.lastname}.`);
       }
       catch (err) {
@@ -424,7 +427,7 @@ export default function UsersManagement() {
       {!loading && !error && filteredUsers.length === 0 && (<EmptyState description={t("adminUsers.noneFound")}/>)}
 
       {!loading && filteredUsers.length > 0 && (<div className="overflow-x-auto rounded-xl border bg-white shadow-sm">
-          <table className="table-auto w-full border-collapse text-sm">
+          <table className="table-auto min-w-[1200px] w-full border-collapse text-sm">
             <thead className="bg-muted/50">
               <tr className="text-left">
                 <th className="px-4 py-3 text-sm font-semibold">User ID</th>
@@ -447,7 +450,7 @@ export default function UsersManagement() {
                 <th className="px-4 py-3 text-sm font-semibold">
                   {t("adminUsers.currentRoles")}
                 </th>
-                <th className="px-4 py-3 text-sm font-semibold">
+                <th className="px-4 py-3 text-sm font-semibold min-w-[220px]">
                   {t("common.actions")}
                 </th>
               </tr>
@@ -484,17 +487,22 @@ export default function UsersManagement() {
                         </span>))}
                     </div>
                   </td>
-                  <td className="px-4 py-3">
-                    <div className="flex flex-wrap gap-2">
+                  <td className="px-4 py-3 align-top">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                      {(() => {
+                        const isAdminAccount = item.roles.includes(ROLES.ADMIN);
+                        const protectedAction = busyUserId === item.id || item.id === currentUser?.id || isAdminAccount;
+                        return (
+                          <>
                       <Button size="sm" variant="outline" className="rounded-xl" onClick={() => openEditor(item)}>
                         {t("common.edit")}
                       </Button>
-                      <Button size="sm" variant="outline" className="rounded-xl" onClick={() => handleToggleStatus(item)} disabled={busyUserId === item.id || item.id === currentUser?.id}>
-                        {item.actived === 1 ? t("common.deactivate") : t("common.activate")}
-                      </Button>
-                      <Button size="sm" variant="destructive" className="rounded-xl" onClick={() => handleDelete(item)} disabled={busyUserId === item.id || item.id === currentUser?.id}>
+                      <Button size="sm" variant="destructive" className="rounded-xl" onClick={() => handleDelete(item)} disabled={protectedAction}>
                         {t("common.delete")}
                       </Button>
+                          </>
+                        );
+                      })()}
                     </div>
                   </td>
                 </tr>))}
@@ -635,6 +643,19 @@ export default function UsersManagement() {
               </div>
 
               <div className="mt-6 flex shrink-0 justify-end gap-3 border-t border-slate-200 bg-white pt-4">
+                <Button
+                  variant="outline"
+                  className="rounded-xl"
+                  onClick={() => handleToggleStatus(editingUser)}
+                  disabled={
+                    saving ||
+                    busyUserId === editingUser.id ||
+                    editingUser.id === currentUser?.id ||
+                    editingUser.roles?.includes(ROLES.ADMIN)
+                  }
+                >
+                  {editingUser.actived === 1 ? t("common.deactivate") : t("common.activate")}
+                </Button>
                 <Button variant="outline" className="rounded-xl" onClick={closeEditor} disabled={saving}>
                   {t("common.cancel")}
                 </Button>

@@ -42,13 +42,13 @@ function escapeHtml(value) {
         .replace(/"/g, "&quot;")
         .replace(/'/g, "&#39;");
 }
-function formatDateTime(value) {
+function formatDateTime(value, locale) {
     if (!value)
         return "N/A";
     const date = new Date(value);
     if (Number.isNaN(date.getTime()))
         return String(value);
-    return date.toLocaleString();
+    return date.toLocaleString(locale);
 }
 function getApprovalTone(status) {
   if (status === "APPROVED")
@@ -58,6 +58,7 @@ function getApprovalTone(status) {
   return "bg-amber-100 text-amber-700";
 }
 function PickerField({ value, onChange, options, placeholder, disabled = false, searchPlaceholder, compact = false, }) {
+    const { t } = useLanguage();
     const [open, setOpen] = useState(false);
     const [query, setQuery] = useState("");
     const selected = options.find((option) => option.value === value) || null;
@@ -106,7 +107,7 @@ function PickerField({ value, onChange, options, placeholder, disabled = false, 
 
           <div className="max-h-72 overflow-y-auto p-2">
             {filtered.length === 0 ? (<div className="rounded-xl px-3 py-6 text-center text-sm text-muted-foreground">
-                No matching options
+                {t("prescriptions.noMatchingOptions")}
               </div>) : (filtered.map((option) => {
                 const active = option.value === value;
                 return (<button key={option.value} type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => handleSelect(option.value)} className={`flex w-full items-start justify-between gap-3 rounded-xl px-3 py-3 text-left transition ${active ? "bg-primary/10 text-primary" : "hover:bg-emerald-50/60"}`}>
@@ -121,14 +122,14 @@ function PickerField({ value, onChange, options, placeholder, disabled = false, 
           </div>
 
           <div className="border-t border-emerald-100 bg-slate-50/70 px-3 py-2 text-xs text-muted-foreground">
-            Type to filter, then choose the correct record.
+            {t("prescriptions.typeToFilter")}
           </div>
         </div>) : null}
     </div>);
 }
 export default function PrescriptionsPage() {
     const { user } = useAuth();
-    const { t } = useLanguage();
+    const { t, language } = useLanguage();
     const [items, setItems] = useState([]);
     const [products, setProducts] = useState([]);
     const [doctors, setDoctors] = useState([]);
@@ -182,12 +183,12 @@ export default function PrescriptionsPage() {
     const selectedAgentName = useMemo(() => selectedAgent?.agent_name || selectedAgent?.agent_situation || patientCard?.agent_name || "-", [patientCard?.agent_name, selectedAgent]);
     const agentOptions = useMemo(() => agents.map((agent) => ({
         value: agent.agent_id,
-        label: agent.agent_situation || "Agent",
-        description: agent.agent_situation ? `Situation: ${agent.agent_situation}` : undefined,
+        label: agent.agent_situation || t("prescriptions.agentFallback"),
+        description: agent.agent_situation ? `${t("prescriptions.situationLabel")}: ${agent.agent_situation}` : undefined,
     })), [agents]);
     const doctorOptions = useMemo(() => selectableDoctors.map((doctor) => ({
         value: String(doctor.doctor_id),
-        label: doctor.name || `Doctor ${doctor.doctor_id}`,
+        label: doctor.name || `${t("prescriptions.doctorFallback")} ${doctor.doctor_id}`,
     })), [selectableDoctors]);
     const typeOptions = useMemo(() => types.map((entry) => ({
         value: entry.type,
@@ -201,23 +202,24 @@ export default function PrescriptionsPage() {
     const printMedicalRequest = (prescription, requestType, requestLabel) => {
         if (!prescription || !requestLabel)
             return;
-        const issuedAt = formatDateTime(prescription.prescription_date);
-        const printIssuedAt = formatDateTime(new Date().toISOString());
+        const locale = language === "fr" ? "fr-FR" : "en-US";
+        const issuedAt = formatDateTime(prescription.prescription_date, locale);
+        const printIssuedAt = formatDateTime(new Date().toISOString(), locale);
         const doctorName = prescription.doctor_name || [user?.firstname, user?.lastname].filter(Boolean).join(" ").trim() || user?.username || "N/A";
         const patientName = prescription.agent_name || prescription.agent_situation || "N/A";
-        const requestTypeLabel = requestType === "RADIO" ? "Radiology request" : "Laboratory analysis request";
+        const requestTypeLabel = requestType === "RADIO" ? t("prescriptions.print.requestType.radio") : t("prescriptions.print.requestType.analysis");
         const badgeLabel = requestType === "RADIO" ? "RADIO" : "ANALYSIS";
         const printableRows = [
-            ["Prescription number", prescription.prescription_number || prescription.prescription_id || "N/A"],
-            ["Prescription type", prescription.type || "N/A"],
-            ["Prescription date", issuedAt],
-            ["Doctor", doctorName],
-            ["Doctor account", user?.username || prescription.doctor_id || "N/A"],
-            ["Agent ID", prescription.agent_id || "N/A"],
-            ["Agent / patient", patientName],
-            ["Patient situation", prescription.agent_situation || "N/A"],
-            ["Approval status", prescription.approval?.status || "PENDING"],
-            ["Printed on", printIssuedAt],
+            [t("prescriptions.print.prescriptionNumber"), prescription.prescription_number || prescription.prescription_id || "N/A"],
+            [t("prescriptions.print.prescriptionType"), prescription.type || "N/A"],
+            [t("prescriptions.print.prescriptionDate"), issuedAt],
+            [t("prescriptions.print.doctor"), doctorName],
+            [t("prescriptions.print.doctorAccount"), user?.username || prescription.doctor_id || "N/A"],
+            [t("prescriptions.print.agentId"), prescription.agent_id || "N/A"],
+            [t("prescriptions.print.agentPatient"), patientName],
+            [t("prescriptions.print.patientSituation"), prescription.agent_situation || "N/A"],
+            [t("prescriptions.print.approvalStatus"), prescription.approval?.status || "PENDING"],
+            [t("prescriptions.print.printedOn"), printIssuedAt],
         ];
         const rowsMarkup = printableRows
             .map(([label, value]) => `
@@ -229,7 +231,7 @@ export default function PrescriptionsPage() {
             .join("");
         const html = `
 <!DOCTYPE html>
-<html lang="en">
+<html lang="${escapeHtml(language)}">
   <head>
     <meta charset="UTF-8" />
     <title>${escapeHtml(requestTypeLabel)} - ${escapeHtml(requestLabel)}</title>
@@ -393,27 +395,26 @@ export default function PrescriptionsPage() {
         <div class="hero-top">
           <div>
             <h1>${escapeHtml(requestTypeLabel)}</h1>
-            <p>Prescription support document generated from the medical prescription workspace.</p>
+            <p>${escapeHtml(t("prescriptions.print.heroSubtitle"))}</p>
           </div>
           <div class="badge">${escapeHtml(badgeLabel)}</div>
         </div>
         <div class="hero-body">
           <div class="request-box">
-            <p class="request-label">${escapeHtml(requestType === "RADIO" ? "Requested exam" : "Requested analysis")}</p>
+            <p class="request-label">${escapeHtml(requestType === "RADIO" ? t("prescriptions.print.requestedExam") : t("prescriptions.print.requestedAnalysis"))}</p>
             <p class="request-value">${escapeHtml(requestLabel)}</p>
           </div>
           <div class="meta-grid">${rowsMarkup}</div>
           <div class="note">
-            This document certifies that the named medical request was issued from the prescription record shown above.
-            The patient or receiving agent should present this document when attending the exam or analysis.
+            ${escapeHtml(t("prescriptions.print.note"))}
           </div>
           <div class="footer">
             <div class="signature">
-              <div class="signature-title">Issued by doctor</div>
+              <div class="signature-title">${escapeHtml(t("prescriptions.print.issuedByDoctor"))}</div>
               <div class="signature-name">${escapeHtml(doctorName)}</div>
             </div>
             <div class="signature">
-              <div class="signature-title">Patient / agent</div>
+              <div class="signature-title">${escapeHtml(t("prescriptions.print.patientAgent"))}</div>
               <div class="signature-name">${escapeHtml(patientName)}</div>
             </div>
           </div>
@@ -432,7 +433,7 @@ export default function PrescriptionsPage() {
         const printWindow = window.open(printUrl, "_blank", "width=980,height=820");
         if (!printWindow) {
             window.URL.revokeObjectURL(printUrl);
-            setError("Unable to open the print window. Please allow pop-ups and try again.");
+            setError(t("prescriptions.print.windowError"));
             return;
         }
         const cleanup = () => {
@@ -943,31 +944,31 @@ export default function PrescriptionsPage() {
 
         <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <h3 className="text-sm font-semibold text-slate-900">Patient card (agent)</h3>
-            <p className="text-xs text-muted-foreground">Agent: {selectedAgentName} {agentId ? `(ID: ${agentId})` : ""}</p>
+            <h3 className="text-sm font-semibold text-slate-900">{t("prescriptions.patientCardTitle")}</h3>
+            <p className="text-xs text-muted-foreground">{t("prescriptions.agentId")}: {selectedAgentName} {agentId ? `(${t("common.id")}: ${agentId})` : ""}</p>
           </div>
 
-          {!agentId.trim() ? (<p className="mt-2 text-sm text-muted-foreground">Select an agent to see previous prescriptions and medical context.</p>) : patientCardLoading ? (<p className="mt-2 text-sm text-muted-foreground">Loading patient history...</p>) : !patientCard ? (<p className="mt-2 text-sm text-muted-foreground">No patient history found for this agent.</p>) : (<div className="mt-3 space-y-3">
+          {!agentId.trim() ? (<p className="mt-2 text-sm text-muted-foreground">{t("prescriptions.selectAgentForHistory")}</p>) : patientCardLoading ? (<p className="mt-2 text-sm text-muted-foreground">{t("prescriptions.loadingPatientHistory")}</p>) : !patientCard ? (<p className="mt-2 text-sm text-muted-foreground">{t("prescriptions.noPatientHistory")}</p>) : (<div className="mt-3 space-y-3">
                 <div className="grid gap-3 sm:grid-cols-4">
                   <div className="rounded-lg border border-slate-200 bg-white p-3">
-                    <p className="text-xs text-muted-foreground">Total prescriptions</p>
+                    <p className="text-xs text-muted-foreground">{t("prescriptions.totalPrescriptions")}</p>
                     <p className="text-lg font-semibold">{patientCard.total_prescriptions || 0}</p>
                   </div>
                   <div className="rounded-lg border border-slate-200 bg-white p-3">
-                    <p className="text-xs text-muted-foreground">Last prescription number</p>
+                    <p className="text-xs text-muted-foreground">{t("prescriptions.lastPrescriptionNumber")}</p>
                     <p className="text-sm font-medium">{patientCard.last_prescription_number || "N/A"}</p>
                   </div>
                   <div className="rounded-lg border border-slate-200 bg-white p-3">
-                    <p className="text-xs text-muted-foreground">Latest situation</p>
+                    <p className="text-xs text-muted-foreground">{t("prescriptions.latestSituation")}</p>
                     <p className="text-sm font-medium">{patientCard.agent_situation || "N/A"}</p>
                   </div>
                   <div className="rounded-lg border border-slate-200 bg-white p-3">
-                    <p className="text-xs text-muted-foreground">Last prescription date</p>
+                    <p className="text-xs text-muted-foreground">{t("prescriptions.lastPrescriptionDate")}</p>
                     <p className="text-sm font-medium">{patientCard.last_prescription_date ? new Date(patientCard.last_prescription_date).toLocaleString() : "N/A"}</p>
                   </div>
                 </div>
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Recent history</p>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("prescriptions.recentHistory")}</p>
                   <div className="mt-2 max-h-52 overflow-y-auto rounded-lg border border-slate-200 bg-white">
                     {patientCard.history?.length ? (<ul className="divide-y divide-slate-100">
                         {patientCard.history.slice(0, 8).map((entry) => (<li key={entry.prescription_id} className="px-3 py-2 text-sm">
@@ -975,7 +976,7 @@ export default function PrescriptionsPage() {
                             <span className="ml-2 text-muted-foreground">{entry.type || "Type N/A"}</span>
                             <span className="ml-2 text-muted-foreground">{entry.prescription_date ? new Date(entry.prescription_date).toLocaleDateString() : ""}</span>
                           </li>))}
-                      </ul>) : (<p className="px-3 py-3 text-sm text-muted-foreground">No previous prescription for this agent.</p>)}
+                      </ul>) : (<p className="px-3 py-3 text-sm text-muted-foreground">{t("prescriptions.noPreviousPrescription")}</p>)}
                   </div>
                 </div>
               </div>)}
@@ -984,7 +985,7 @@ export default function PrescriptionsPage() {
         {canCreate ? (<form className="mt-4 space-y-4" onSubmit={onSubmit}>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-5">
               <div className="space-y-2">
-                <p className="text-sm font-medium">Agent name / ID</p>
+                <p className="text-sm font-medium">{t("prescriptions.agentNameId")}</p>
                 <PickerField value={agentId} onChange={setAgentId} options={agentOptions} placeholder={t("prescriptions.agentPlaceholder")} searchPlaceholder={t("prescriptions.agentPlaceholder")} compact/>
                 <p className="text-xs text-muted-foreground">{t("prescriptions.agentHint")}</p>
                 {agentLookupError ? <p className="text-xs text-destructive">{agentLookupError}</p> : null}
@@ -1062,11 +1063,11 @@ export default function PrescriptionsPage() {
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <p className="text-sm font-medium">Radios to perform</p>
+                <p className="text-sm font-medium">{t("prescriptions.radiosToPerform")}</p>
                 <textarea rows={3} className="w-full rounded-xl border border-input bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-primary" value={radiosText} onChange={(event) => setRadiosText(event.target.value)} placeholder="One radio exam per line, or separated by commas"/>
               </div>
               <div className="space-y-2">
-                <p className="text-sm font-medium">Analyses to perform</p>
+                <p className="text-sm font-medium">{t("prescriptions.analysesToPerform")}</p>
                 <textarea rows={3} className="w-full rounded-xl border border-input bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-primary" value={analysesText} onChange={(event) => setAnalysesText(event.target.value)} placeholder="One analysis per line, or separated by commas"/>
               </div>
             </div>
@@ -1102,16 +1103,16 @@ export default function PrescriptionsPage() {
               <table className="w-full table-auto border-collapse text-sm">
                 <thead className="bg-muted/50">
                   <tr className="text-left">
-                    <th className="px-4 py-3 font-semibold">ID</th>
+                    <th className="px-4 py-3 font-semibold">{t("common.id")}</th>
                     <th className="px-4 py-3 font-semibold">{t("common.number")}</th>
                     <th className="px-4 py-3 font-semibold">{t("common.date")}</th>
                     <th className="px-4 py-3 font-semibold">{t("prescriptions.doctorColumn")}</th>
                     <th className="px-4 py-3 font-semibold">{t("prescriptions.type")}</th>
-                    <th className="px-4 py-3 font-semibold">Approval</th>
-                    <th className="px-4 py-3 font-semibold">Assigned pharmacist</th>
-                    <th className="px-4 py-3 font-semibold">Rejection reason</th>
+                    <th className="px-4 py-3 font-semibold">{t("prescriptions.approval")}</th>
+                    <th className="px-4 py-3 font-semibold">{t("prescriptions.assignedPharmacist")}</th>
+                    <th className="px-4 py-3 font-semibold">{t("prescriptions.rejectionReason")}</th>
                     <th className="px-4 py-3 font-semibold">{t("common.lines")}</th>
-                    <th className="px-4 py-3 font-semibold">Details</th>
+                    <th className="px-4 py-3 font-semibold">{t("prescriptions.details")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1138,45 +1139,45 @@ export default function PrescriptionsPage() {
                         <td className="px-4 py-3">{item.lines.length}</td>
                         <td className="px-4 py-3">
                           <Button size="sm" variant="outline" onClick={() => toggleExistingDetails(item.prescription_id)}>
-                            {expandedExistingId === item.prescription_id ? "Hide" : "View"}
+                            {expandedExistingId === item.prescription_id ? t("prescriptions.hide") : t("prescriptions.view")}
                           </Button>
                         </td>
                       </tr>
                       {expandedExistingId === item.prescription_id ? (<tr className="border-t bg-slate-50/60">
                           <td className="px-4 py-3" colSpan={10}>
-                            {!existingDetailsById[item.prescription_id] ? (<p className="text-sm text-muted-foreground">Loading details...</p>) : (<div className="space-y-3">
+                            {!existingDetailsById[item.prescription_id] ? (<p className="text-sm text-muted-foreground">{t("prescriptions.loadingDetails")}</p>) : (<div className="space-y-3">
                                   <div className="grid gap-2 text-sm sm:grid-cols-2">
                                     <div>
-                                      <span className="font-semibold">Prescription number:</span>{" "}
+                                      <span className="font-semibold">{t("prescriptions.print.prescriptionNumber")}:</span>{" "}
                                       {existingDetailsById[item.prescription_id].prescription_number || existingDetailsById[item.prescription_id].prescription_id}
                                     </div>
                                     <div>
-                                      <span className="font-semibold">Patient name:</span>{" "}
+                                      <span className="font-semibold">{t("prescriptions.patientName")}:</span>{" "}
                                       {existingDetailsById[item.prescription_id].agent_name || existingDetailsById[item.prescription_id].agent_situation || "N/A"}
                                     </div>
                                   </div>
 
                                   {existingDetailsById[item.prescription_id].approval?.status === "REJECTED" ? (<div className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
-                                      <p className="font-semibold">Reason of refusal</p>
-                                      <p className="mt-1">{existingDetailsById[item.prescription_id].approval?.notes || "No reason provided."}</p>
+                                      <p className="font-semibold">{t("prescriptions.reasonOfRefusal")}</p>
+                                      <p className="mt-1">{existingDetailsById[item.prescription_id].approval?.notes || t("prescriptions.noReasonProvided")}</p>
                                     </div>) : null}
 
                                   <div className="rounded-lg border border-slate-200 bg-white">
                                     <table className="w-full text-sm">
                                       <thead className="bg-slate-100">
                                         <tr>
-                                          <th className="px-2 py-2 text-left">Product</th>
-                                          <th className="px-2 py-2 text-left">Qty</th>
-                                          <th className="px-2 py-2 text-left">Days</th>
-                                          <th className="px-2 py-2 text-left">Periodicity</th>
-                                          <th className="px-2 py-2 text-left">Posologie</th>
+                                          <th className="px-2 py-2 text-left">{t("common.product")}</th>
+                                          <th className="px-2 py-2 text-left">{t("prescriptions.qty")}</th>
+                                          <th className="px-2 py-2 text-left">{t("prescriptions.days")}</th>
+                                          <th className="px-2 py-2 text-left">{t("prescriptions.periodicity")}</th>
+                                          <th className="px-2 py-2 text-left">{t("prescriptions.posologie")}</th>
                                         </tr>
                                       </thead>
                                       <tbody>
                                         {existingDetailsById[item.prescription_id].lines.map((line) => (<tr key={line.line_id} className="border-t">
                                             <td className="px-2 py-2">
                                               <div className="font-medium text-slate-900">{line.product_lib || "-"}</div>
-                                              <div className="text-xs text-slate-500">ID: {line.product_id ?? "-"}</div>
+                                              <div className="text-xs text-slate-500">{t("common.id")}: {line.product_id ?? "-"}</div>
                                             </td>
                                             <td className="px-2 py-2">{line.total_qt}</td>
                                             <td className="px-2 py-2">{line.days ?? "-"}</td>
@@ -1189,26 +1190,26 @@ export default function PrescriptionsPage() {
 
                                   <div className="grid gap-3 sm:grid-cols-2">
                                     <div className="rounded-lg border border-slate-200 bg-white p-3">
-                                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Radios</p>
+                                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("prescriptions.radios")}</p>
                                       {existingDetailsById[item.prescription_id].radios?.length ? (<div className="mt-2 space-y-2">
                                           {existingDetailsById[item.prescription_id].radios.map((radio, index) => (<div key={`${item.prescription_id}-radio-${index}`} className="flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 sm:flex-row sm:items-center sm:justify-between">
                                               <div className="text-sm font-medium text-slate-800">{radio}</div>
                                               {isDoctorUser ? (<Button size="sm" variant="outline" onClick={() => printMedicalRequest(existingDetailsById[item.prescription_id], "RADIO", radio)}>
-                                                  Print PDF
+                                                  {t("prescriptions.printPdf")}
                                                 </Button>) : null}
                                             </div>))}
-                                        </div>) : (<p className="mt-2 text-sm text-muted-foreground">No radios requested.</p>)}
+                                        </div>) : (<p className="mt-2 text-sm text-muted-foreground">{t("prescriptions.noRadios")}</p>)}
                                     </div>
                                     <div className="rounded-lg border border-slate-200 bg-white p-3">
-                                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Analyses</p>
+                                      <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("prescriptions.analyses")}</p>
                                       {existingDetailsById[item.prescription_id].analyses?.length ? (<div className="mt-2 space-y-2">
                                           {existingDetailsById[item.prescription_id].analyses.map((analysis, index) => (<div key={`${item.prescription_id}-analysis-${index}`} className="flex flex-col gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 sm:flex-row sm:items-center sm:justify-between">
                                               <div className="text-sm font-medium text-slate-800">{analysis}</div>
                                               {isDoctorUser ? (<Button size="sm" variant="outline" onClick={() => printMedicalRequest(existingDetailsById[item.prescription_id], "ANALYSIS", analysis)}>
-                                                  Print PDF
+                                                  {t("prescriptions.printPdf")}
                                                 </Button>) : null}
                                             </div>))}
-                                        </div>) : (<p className="mt-2 text-sm text-muted-foreground">No analyses requested.</p>)}
+                                        </div>) : (<p className="mt-2 text-sm text-muted-foreground">{t("prescriptions.noAnalyses")}</p>)}
                                     </div>
                                   </div>
                                 </div>)}
@@ -1227,20 +1228,20 @@ export default function PrescriptionsPage() {
 
       {canApprove && isPharmacistUser ? (<div className="rounded-xl border bg-white p-5 shadow-sm">
           <div className="flex items-center justify-between gap-3">
-            <h3 className="text-base font-semibold">Pending prescription approvals</h3>
-            <p className="text-sm text-muted-foreground">{pendingApprovals.length} pending</p>
+            <h3 className="text-base font-semibold">{t("prescriptions.pendingApprovals")}</h3>
+            <p className="text-sm text-muted-foreground">{pendingApprovals.length} {t("prescriptions.pending")}</p>
           </div>
 
-          {approvalLoading ? (<p className="mt-3 text-sm text-muted-foreground">Updating approval...</p>) : pendingApprovals.length === 0 ? (<p className="mt-3 text-sm text-muted-foreground">No pending approvals assigned to you.</p>) : (<div className="mt-3 overflow-x-auto">
+          {approvalLoading ? (<p className="mt-3 text-sm text-muted-foreground">{t("prescriptions.updatingApproval")}</p>) : pendingApprovals.length === 0 ? (<p className="mt-3 text-sm text-muted-foreground">{t("prescriptions.noPendingApprovals")}</p>) : (<div className="mt-3 overflow-x-auto">
                 <table className="w-full table-auto border-collapse text-sm">
                   <thead className="bg-muted/50">
                     <tr className="text-left">
-                      <th className="px-3 py-2 font-semibold">Prescription</th>
-                      <th className="px-3 py-2 font-semibold">Doctor</th>
-                      <th className="px-3 py-2 font-semibold">Agent</th>
-                      <th className="px-3 py-2 font-semibold">Requested</th>
+                      <th className="px-3 py-2 font-semibold">{t("prescriptions.prescriptionColumn")}</th>
+                      <th className="px-3 py-2 font-semibold">{t("prescriptions.doctorColumn")}</th>
+                      <th className="px-3 py-2 font-semibold">{t("prescriptions.agentColumn")}</th>
+                      <th className="px-3 py-2 font-semibold">{t("prescriptions.requested")}</th>
                       <th className="px-3 py-2 font-semibold">Lines</th>
-                      <th className="px-3 py-2 font-semibold">Action</th>
+                      <th className="px-3 py-2 font-semibold">{t("common.actions")}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1254,10 +1255,10 @@ export default function PrescriptionsPage() {
                           <td className="px-3 py-2">
                             <div className="flex flex-wrap gap-2">
                               <Button size="sm" variant="outline" disabled={approvalBusyId === entry.prescription_id} onClick={() => togglePendingDetails(entry.prescription_id)}>
-                                {expandedPendingId === entry.prescription_id ? "Hide details" : "View details"}
+                                {expandedPendingId === entry.prescription_id ? t("prescriptions.hideDetails") : t("prescriptions.viewDetails")}
                               </Button>
-                              <Button size="sm" disabled={approvalBusyId === entry.prescription_id} onClick={() => decideApproval(entry.prescription_id, "APPROVED")}>Approve</Button>
-                              <Button size="sm" variant="outline" disabled={approvalBusyId === entry.prescription_id} onClick={() => onRejectClick(entry.prescription_id)}>Reject</Button>
+                              <Button size="sm" disabled={approvalBusyId === entry.prescription_id} onClick={() => decideApproval(entry.prescription_id, "APPROVED")}>{t("prescriptions.approve")}</Button>
+                              <Button size="sm" variant="outline" disabled={approvalBusyId === entry.prescription_id} onClick={() => onRejectClick(entry.prescription_id)}>{t("prescriptions.reject")}</Button>
                             </div>
                           </td>
                         </tr>
@@ -1265,20 +1266,20 @@ export default function PrescriptionsPage() {
                             <td colSpan={6} className="px-3 py-3">
                               {pendingDetailsById[entry.prescription_id] ? (<div className="space-y-3">
                                   <div className="grid gap-2 text-sm sm:grid-cols-3">
-                                    <div><span className="font-semibold">Doctor:</span> {pendingDetailsById[entry.prescription_id].doctor_name || pendingDetailsById[entry.prescription_id].doctor_id || "N/A"}</div>
-                                    <div><span className="font-semibold">Agent:</span> {pendingDetailsById[entry.prescription_id].agent_id || "N/A"}</div>
-                                    <div><span className="font-semibold">Type:</span> {pendingDetailsById[entry.prescription_id].type || "N/A"}</div>
+                                    <div><span className="font-semibold">{t("prescriptions.doctor")}:</span> {pendingDetailsById[entry.prescription_id].doctor_name || pendingDetailsById[entry.prescription_id].doctor_id || "N/A"}</div>
+                                    <div><span className="font-semibold">{t("prescriptions.agentId")}:</span> {pendingDetailsById[entry.prescription_id].agent_id || "N/A"}</div>
+                                    <div><span className="font-semibold">{t("prescriptions.type")}:</span> {pendingDetailsById[entry.prescription_id].type || "N/A"}</div>
                                   </div>
                                   <div className="rounded-lg border border-slate-200 bg-white">
                                     <table className="w-full text-sm">
                                       <thead className="bg-slate-100">
                                         <tr>
-                                          <th className="px-2 py-2 text-left">Product</th>
-                                          <th className="px-2 py-2 text-left">Requested qty</th>
-                                          <th className="px-2 py-2 text-left">Stock qty</th>
-                                          <th className="px-2 py-2 text-left">Comparison</th>
-                                          <th className="px-2 py-2 text-left">Days</th>
-                                          <th className="px-2 py-2 text-left">Posologie</th>
+                                          <th className="px-2 py-2 text-left">{t("common.product")}</th>
+                                          <th className="px-2 py-2 text-left">{t("prescriptions.requestedQty")}</th>
+                                          <th className="px-2 py-2 text-left">{t("prescriptions.stockQty")}</th>
+                                          <th className="px-2 py-2 text-left">{t("prescriptions.comparison")}</th>
+                                          <th className="px-2 py-2 text-left">{t("prescriptions.days")}</th>
+                                          <th className="px-2 py-2 text-left">{t("prescriptions.posologie")}</th>
                                         </tr>
                                       </thead>
                                       <tbody>
@@ -1292,20 +1293,20 @@ export default function PrescriptionsPage() {
                                             <tr key={line.line_id} className="border-t">
                                               <td className="px-2 py-2">
                                                 <div className="font-medium text-slate-900">{line.product_lib || "-"}</div>
-                                                <div className="text-xs text-slate-500">ID: {line.product_id ?? "-"}</div>
+                                                <div className="text-xs text-slate-500">{t("common.id")}: {line.product_id ?? "-"}</div>
                                               </td>
                                               <td className="px-2 py-2">{line.total_qt}</td>
                                               <td className="px-2 py-2">{stockQty === null ? "..." : stockQty}</td>
                                               <td className="px-2 py-2">
                                                 {stockQty === null ? (
-                                                  <span className="text-xs text-muted-foreground">Checking...</span>
+                                                  <span className="text-xs text-muted-foreground">{t("prescriptions.checking")}</span>
                                                 ) : hasEnoughStock ? (
                                                   <span className="inline-flex rounded-full bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-700">
-                                                    Enough
+                                                    {t("prescriptions.enough")}
                                                   </span>
                                                 ) : (
                                                   <span className="inline-flex rounded-full bg-rose-100 px-2 py-1 text-xs font-semibold text-rose-700">
-                                                    Insufficient
+                                                    {t("prescriptions.insufficient")}
                                                   </span>
                                                 )}
                                               </td>
@@ -1317,23 +1318,23 @@ export default function PrescriptionsPage() {
                                       </tbody>
                                     </table>
                                   </div>
-                                </div>) : (<p className="text-sm text-muted-foreground">Loading details...</p>)}
+                                </div>) : (<p className="text-sm text-muted-foreground">{t("prescriptions.loadingDetails")}</p>)}
                             </td>
                           </tr>) : null}
                         {rejectingId === entry.prescription_id ? (<tr className="border-t bg-rose-50/40">
                             <td colSpan={6} className="px-3 py-3">
                               <div className="space-y-2">
-                                <p className="text-sm font-medium text-rose-700">Reason for rejection</p>
+                                <p className="text-sm font-medium text-rose-700">{t("prescriptions.reasonForRejection")}</p>
                                 <textarea rows={3} className="w-full rounded-xl border border-input bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-primary" value={rejectionNotesById[entry.prescription_id] || ""} onChange={(event) => setRejectionNotesById((prev) => ({
                                 ...prev,
                                 [entry.prescription_id]: event.target.value,
-                            }))} placeholder="Explain why this prescription is rejected"/>
+                            }))} placeholder={t("prescriptions.rejectPlaceholder")}/>
                                 <div className="flex gap-2">
                                   <Button size="sm" variant="outline" onClick={() => setRejectingId(null)}>
-                                    Cancel
+                                    {t("common.cancel")}
                                   </Button>
                                   <Button size="sm" disabled={approvalBusyId === entry.prescription_id} onClick={() => submitReject(entry.prescription_id)}>
-                                    Confirm rejection
+                                    {t("prescriptions.confirmRejection")}
                                   </Button>
                                 </div>
                               </div>
@@ -1346,3 +1347,4 @@ export default function PrescriptionsPage() {
         </div>) : null}
     </div>);
 }
+
