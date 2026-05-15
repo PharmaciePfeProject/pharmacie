@@ -24,6 +24,7 @@ const PRESCRIPTION_TABLE = withSchema("PRESCRIPTION");
 const PRESCRIPTION_LINE_TABLE = withSchema("PRESCRIPTION_LINE");
 const PRESCRIPTION_APPROVAL_TABLE = withSchema("PRESCRIPTION_APPROVAL");
 const PRESCRIPTION_REQUEST_TABLE = withSchema("PRESCRIPTION_MEDICAL_REQUEST");
+const APPOINTMENT_TABLE = withSchema("APPOINTMENT");
 const PRODUCT_TABLE = withSchema("PRODUCT");
 const USERS_TABLE = withSchema("UTILISATEUR");
 const USER_ROLES_TABLE = withSchema("UTILISATEUR_ROLE");
@@ -452,6 +453,33 @@ async function assertProductsExist(productIds) {
   }
 }
 
+async function assertDoctorHasActiveAppointmentForAgent(doctorId, agentId) {
+  const result = await dbQuery(
+    `SELECT ID, APPOINTMENT_AT, STATUS
+     FROM ${APPOINTMENT_TABLE}
+     WHERE DOCTOR_ID = :doctor_id
+       AND AGENT_ID = :agent_id
+       AND STATUS <> 'CANCELED'
+     ORDER BY APPOINTMENT_AT DESC, ID DESC
+     FETCH FIRST 1 ROWS ONLY`,
+    {
+      doctor_id: doctorId,
+      agent_id: agentId,
+    }
+  );
+
+  if (result.rows.length === 0) {
+    const error = new Error("The doctor can create prescriptions only if this agent already has an appointment.");
+    error.status = 409;
+    error.details = {
+      appointment: "No active appointment exists for this agent and doctor.",
+    };
+    throw error;
+  }
+
+  return result.rows[0];
+}
+
 async function pickPharmacistForApproval(conn, agentSituation) {
   const situationTokens = extractLocationTokens(agentSituation);
 
@@ -601,6 +629,14 @@ export async function createPrescription(req, res) {
     }
 
     doctorId = connectedDoctor.doctor_id;
+
+    if (!req.body.agent_id) {
+      return res.status(400).json({
+        message: "agent_id is required for doctor prescriptions.",
+      });
+    }
+
+    await assertDoctorHasActiveAppointmentForAgent(doctorId, req.body.agent_id);
   }
 
   await assertDoctorExists(doctorId);
@@ -790,6 +826,214 @@ export async function createPrescription(req, res) {
 
   const item = await getPrescriptionItemById(prescriptionId);
   return res.status(201).json({ item });
+}
+
+async function getPrescriptionForMutation(conn, prescriptionId) {
+  const result = await conn.execute(
+    `SELECT p.ID, p.DOCTOR_ID, pa.STATUS
+     FROM ${PRESCRIPTION_TABLE} p
+     LEFT JOIN ${PRESCRIPTION_APPROVAL_TABLE} pa ON pa.PRESCRIPTION_ID = p.ID
+     WHERE p.ID = :id
+     FOR UPDATE`,
+    { id: prescriptionId }
+  );
+
+  if (result.rows.length === 0) {
+    const error = new Error("Prescription not found");
+    error.status = 404;
+    throw error;
+  }
+
+  return result.rows[0];
+}
+
+function assertPendingApprovalForMutation(row) {
+  const status = row.STATUS || "PENDING";
+  if (status !== "PENDING") {
+    const error = new Error("Only pending prescriptions can be edited or deleted.");
+    error.status = 409;
+    throw error;
+  }
+}
+
+export async function updatePrescription(req, res) {
+  const prescriptionId = Number(req.params.id);
+  const requestedDoctorId = Number(req.body.doctor_id);
+  let doctorId = requestedDoctorId;
+
+  if (isDoctorUser(req.user)) {
+    const connectedDoctor = await requireConnectedDoctor(req.user);
+    if (requestedDoctorId !== connectedDoctor.doctor_id) {
+      return res.status(403).json({
+        message: "Doctors can only update prescriptions for their own profile.",
+      });
+    }
+    doctorId = connectedDoctor.doctor_id;
+  }
+
+  await assertDoctorExists(doctorId);
+  await assertProductsExist(req.body.lines.map((line) => line.product_id));
+  await ensureApprovalTable();
+  await ensureMedicalRequestTable();
+
+  const pool = await initDb();
+  const conn = await pool.getConnection();
+
+  try {
+    const row = await getPrescriptionForMutation(conn, prescriptionId);
+    assertPendingApprovalForMutation(row);
+
+    if (isDoctorUser(req.user) && Number(row.DOCTOR_ID) !== doctorId) {
+      return res.status(403).json({
+        message: "Doctors can only update their own prescriptions.",
+      });
+    }
+
+    await conn.execute(
+      `UPDATE ${PRESCRIPTION_TABLE}
+       SET AGENT_ID = :agent_id,
+           AGENT_SITUATION = :agent_situation,
+           DISTRIBUTED = :distributed,
+           PRESCRIPTION_NUMBER = :prescription_number,
+           TYPE = :type,
+           DOCTOR_ID = :doctor_id
+       WHERE ID = :id`,
+      {
+        id: prescriptionId,
+        agent_id: req.body.agent_id || null,
+        agent_situation: req.body.agent_situation || null,
+        distributed: req.body.distributed ?? 0,
+        prescription_number: req.body.prescription_number || null,
+        type: req.body.type || null,
+        doctor_id: doctorId,
+      },
+      { autoCommit: false }
+    );
+
+    await conn.execute(
+      `DELETE FROM ${PRESCRIPTION_LINE_TABLE} WHERE PRESCRIPTION_ID = :id`,
+      { id: prescriptionId },
+      { autoCommit: false }
+    );
+
+    let nextLineId = await getNextIdWithTableLock(conn, PRESCRIPTION_LINE_TABLE);
+    for (const line of req.body.lines) {
+      await conn.execute(
+        `INSERT INTO ${PRESCRIPTION_LINE_TABLE} (
+          ID, DAYS, DIST_NUMBER, DISTRIBUTED, IS_PERIODIC, PERIODICITY, POSOLOGIE, TOTAL_QT, PRESCRIPTION_ID, PRODUCT_ID
+        ) VALUES (
+          :id, :days, :dist_number, :distributed, :is_periodic, :periodicity, :posologie, :total_qt, :prescription_id, :product_id
+        )`,
+        {
+          id: nextLineId,
+          days: line.days ?? null,
+          dist_number: line.dist_number ?? null,
+          distributed: line.distributed ?? 0,
+          is_periodic: line.is_periodic ?? 0,
+          periodicity: line.periodicity || null,
+          posologie: line.posologie || null,
+          total_qt: line.total_qt,
+          prescription_id: prescriptionId,
+          product_id: line.product_id,
+        },
+        { autoCommit: false }
+      );
+      nextLineId += 1;
+    }
+
+    await conn.execute(
+      `DELETE FROM ${PRESCRIPTION_REQUEST_TABLE} WHERE PRESCRIPTION_ID = :id`,
+      { id: prescriptionId },
+      { autoCommit: false }
+    );
+
+    let nextRequestId = await getNextIdWithTableLock(conn, PRESCRIPTION_REQUEST_TABLE);
+    const radioRequests = Array.isArray(req.body.radios) ? req.body.radios : [];
+    const analysisRequests = Array.isArray(req.body.analyses) ? req.body.analyses : [];
+
+    for (const radioLabel of radioRequests) {
+      await conn.execute(
+        `INSERT INTO ${PRESCRIPTION_REQUEST_TABLE} (ID, PRESCRIPTION_ID, REQUEST_TYPE, REQUEST_LABEL, REQUEST_NOTES, CREATED_AT)
+         VALUES (:id, :prescription_id, 'RADIO', :request_label, NULL, SYSTIMESTAMP)`,
+        { id: nextRequestId, prescription_id: prescriptionId, request_label: radioLabel },
+        { autoCommit: false }
+      );
+      nextRequestId += 1;
+    }
+
+    for (const analysisLabel of analysisRequests) {
+      await conn.execute(
+        `INSERT INTO ${PRESCRIPTION_REQUEST_TABLE} (ID, PRESCRIPTION_ID, REQUEST_TYPE, REQUEST_LABEL, REQUEST_NOTES, CREATED_AT)
+         VALUES (:id, :prescription_id, 'ANALYSIS', :request_label, NULL, SYSTIMESTAMP)`,
+        { id: nextRequestId, prescription_id: prescriptionId, request_label: analysisLabel },
+        { autoCommit: false }
+      );
+      nextRequestId += 1;
+    }
+
+    await conn.commit();
+  } catch (error) {
+    await conn.rollback();
+    throw error;
+  } finally {
+    await conn.close();
+  }
+
+  const item = await getPrescriptionItemById(prescriptionId);
+  return res.json({ item });
+}
+
+export async function deletePrescription(req, res) {
+  const prescriptionId = Number(req.params.id);
+  await ensureApprovalTable();
+  await ensureMedicalRequestTable();
+
+  const pool = await initDb();
+  const conn = await pool.getConnection();
+
+  try {
+    const row = await getPrescriptionForMutation(conn, prescriptionId);
+    assertPendingApprovalForMutation(row);
+
+    if (isDoctorUser(req.user)) {
+      const connectedDoctor = await requireConnectedDoctor(req.user);
+      if (Number(row.DOCTOR_ID) !== connectedDoctor.doctor_id) {
+        return res.status(403).json({
+          message: "Doctors can only delete their own prescriptions.",
+        });
+      }
+    }
+
+    await conn.execute(
+      `DELETE FROM ${PRESCRIPTION_REQUEST_TABLE} WHERE PRESCRIPTION_ID = :id`,
+      { id: prescriptionId },
+      { autoCommit: false }
+    );
+    await conn.execute(
+      `DELETE FROM ${PRESCRIPTION_LINE_TABLE} WHERE PRESCRIPTION_ID = :id`,
+      { id: prescriptionId },
+      { autoCommit: false }
+    );
+    await conn.execute(
+      `DELETE FROM ${PRESCRIPTION_APPROVAL_TABLE} WHERE PRESCRIPTION_ID = :id`,
+      { id: prescriptionId },
+      { autoCommit: false }
+    );
+    await conn.execute(
+      `DELETE FROM ${PRESCRIPTION_TABLE} WHERE ID = :id`,
+      { id: prescriptionId },
+      { autoCommit: false }
+    );
+
+    await conn.commit();
+  } catch (error) {
+    await conn.rollback();
+    throw error;
+  } finally {
+    await conn.close();
+  }
+
+  return res.status(200).json({ deleted: true });
 }
 
 export async function getPatientCard(req, res) {
@@ -1056,30 +1300,55 @@ export async function listPrescriptionAgents(req, res) {
     await requireConnectedDoctor(req.user);
   }
 
-  const result = await dbQuery(
-    `SELECT agent_id, agent_situation
-     FROM (
-       SELECT
-         p.AGENT_ID AS agent_id,
-         p.AGENT_SITUATION AS agent_situation,
-         ROW_NUMBER() OVER (
-           PARTITION BY p.AGENT_ID
-           ORDER BY p.PRESCRIPTION_DATE DESC NULLS LAST, p.ID DESC
-         ) AS rn
-       FROM ${PRESCRIPTION_TABLE} p
-       WHERE p.AGENT_ID IS NOT NULL
-     ) ranked
-     WHERE rn = 1
-     ORDER BY agent_id`
-  );
+  const agentTable = withSchema("AGENT");
 
-  return res.json({
-    items: result.rows.map((row) => ({
-      agent_id: row.AGENT_ID,
-      agent_name: row.AGENT_SITUATION,
-      agent_situation: row.AGENT_SITUATION,
-    })),
-  });
+  try {
+    const result = await dbQuery(
+      `SELECT ID, NAME, SITUATION
+       FROM ${agentTable}
+       ORDER BY ID DESC`,
+      {}
+    );
+
+    return res.json({
+      items: result.rows.map((row) => ({
+        agent_id: row.ID,
+        agent_name: row.NAME,
+        agent_situation: row.SITUATION,
+      })),
+    });
+  } catch (error) {
+    // Fallback to old method if AGENT table doesn't exist
+    console.warn(
+      "AGENT table not found, falling back to prescription-based agents",
+      error.message
+    );
+
+    const result = await dbQuery(
+      `SELECT agent_id, agent_situation
+       FROM (
+         SELECT
+           p.AGENT_ID AS agent_id,
+           p.AGENT_SITUATION AS agent_situation,
+           ROW_NUMBER() OVER (
+             PARTITION BY p.AGENT_ID
+             ORDER BY p.PRESCRIPTION_DATE DESC NULLS LAST, p.ID DESC
+           ) AS rn
+         FROM ${PRESCRIPTION_TABLE} p
+         WHERE p.AGENT_ID IS NOT NULL
+       ) ranked
+       WHERE rn = 1
+       ORDER BY agent_id`
+    );
+
+    return res.json({
+      items: result.rows.map((row) => ({
+        agent_id: row.AGENT_ID,
+        agent_name: row.AGENT_SITUATION,
+        agent_situation: row.AGENT_SITUATION,
+      })),
+    });
+  }
 }
 
 export async function listPrescriptionTypes(req, res) {

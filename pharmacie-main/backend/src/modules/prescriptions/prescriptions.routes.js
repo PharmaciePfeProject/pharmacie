@@ -5,6 +5,7 @@ import { PERMISSIONS } from "../../utils/rbac.js";
 import {
   approvePrescription,
   createPrescription,
+  deletePrescription,
   getPrescriptionById,
   getPatientCard,
   listPendingApprovals,
@@ -12,6 +13,7 @@ import {
   listPrescriptionDoctors,
   listPrescriptions,
   listPrescriptionTypes,
+  updatePrescription,
 } from "./prescriptions.controller.js";
 import {
   approvePrescriptionBodySchema,
@@ -19,6 +21,7 @@ import {
   patientCardParamsSchema,
   prescriptionParamsSchema,
   prescriptionQuerySchema,
+  updatePrescriptionBodySchema,
 } from "./prescriptions.schemas.js";
 
 const r = Router();
@@ -96,6 +99,23 @@ r.post(
   requirePermission(PERMISSIONS.PRESCRIPTIONS_MANAGE),
   validate(createPrescriptionBodySchema),
   createPrescription
+);
+
+r.put(
+  "/prescriptions/:id",
+  requireAuth,
+  requirePermission(PERMISSIONS.PRESCRIPTIONS_MANAGE),
+  validate(prescriptionParamsSchema, "params"),
+  validate(updatePrescriptionBodySchema),
+  updatePrescription
+);
+
+r.delete(
+  "/prescriptions/:id",
+  requireAuth,
+  requirePermission(PERMISSIONS.PRESCRIPTIONS_MANAGE),
+  validate(prescriptionParamsSchema, "params"),
+  deletePrescription
 );
 
 r.post(

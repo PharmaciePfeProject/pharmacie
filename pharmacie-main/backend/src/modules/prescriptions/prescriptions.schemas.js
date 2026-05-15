@@ -57,3 +57,5 @@ export const createPrescriptionBodySchema = z.object({
   radios: z.array(z.string().trim().min(1).max(500)).max(25).optional(),
   analyses: z.array(z.string().trim().min(1).max(500)).max(25).optional(),
 });
+
+export const updatePrescriptionBodySchema = createPrescriptionBodySchema;

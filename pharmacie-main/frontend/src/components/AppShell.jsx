@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
-import { Archive, ArrowLeftRight, Boxes, ChartColumnBig, ChevronLeft, ChevronRight, ClipboardList, Command, LayoutDashboard, LogOut, Package, Shield, ShoppingCart, Stethoscope, Truck, Users, } from "lucide-react";
+import { Archive, ArrowLeftRight, Boxes, CalendarDays, ChartColumnBig, ChevronLeft, ChevronRight, ClipboardList, Command, LayoutDashboard, LogOut, Package, Shield, ShoppingCart, Stethoscope, Truck, Users, } from "lucide-react";
 import { useAuth } from "@/auth/AuthContext";
 import { Button } from "@/components/ui/button";
 import { useLanguage } from "@/i18n/LanguageContext";
@@ -63,6 +63,29 @@ const navSections = [
                 icon: Stethoscope,
                 permissions: [PERMISSIONS.DISTRIBUTIONS_READ],
             },
+            {
+                labelKey: "nav.myAppointments",
+                to: "/app/my-appointments",
+                icon: CalendarDays,
+                permissions: [PERMISSIONS.APPOINTMENTS_READ],
+                roles: [ROLES.MEDECIN],
+                excludeFunctions: ["SECRETAIRE_GENERAL"],
+                match: "any",
+            },
+        ],
+    },
+    {
+        titleKey: "nav.secretariat",
+        items: [
+            {
+                labelKey: "nav.appointments",
+                to: "/app/appointments",
+                icon: CalendarDays,
+                permissions: [PERMISSIONS.APPOINTMENTS_MANAGE],
+                roles: [ROLES.SECRETAIRE_GENERAL],
+                functions: ["SECRETAIRE_GENERAL"],
+                match: "all",
+            },
         ],
     },
     {
@@ -101,7 +124,13 @@ const navSections = [
                 labelKey: "nav.biAnalytics",
                 to: "/app/bi",
                 icon: ChartColumnBig,
-                permissions: [PERMISSIONS.ANALYTICS_READ],
+                roles: [ROLES.RESPONSABLE_REPORTING],
+            },
+            {
+                labelKey: "nav.kpis",
+                to: "/app/bi/kpis",
+                icon: ChartColumnBig,
+                roles: [ROLES.RESPONSABLE_REPORTING],
             },
         ],
     },
@@ -131,6 +160,12 @@ const navSections = [
                 to: "/app/admin/medicines",
                 icon: Package,
                 permissions: [PERMISSIONS.PRODUCTS_MANAGE],
+            },
+            {
+                labelKey: "nav.agents",
+                to: "/app/admin/agents",
+                icon: Stethoscope,
+                permissions: [PERMISSIONS.PRESCRIPTIONS_MANAGE, PERMISSIONS.ADMIN_ACCESS],
             },
             {
                 labelKey: "nav.security",
@@ -168,6 +203,10 @@ const pageMeta = {
     "/app/admin/medicines": {
         titleKey: "page.adminMedicines.title",
         subtitleKey: "page.adminMedicines.subtitle",
+    },
+    "/app/admin/agents": {
+        titleKey: "page.adminAgents.title",
+        subtitleKey: "page.adminAgents.subtitle",
     },
     "/app/products": {
         titleKey: "page.products.title",
@@ -209,6 +248,22 @@ const pageMeta = {
         titleKey: "page.biReports.title",
         subtitleKey: "page.biReports.subtitle",
     },
+    "/app/bi/kpis": {
+        titleKey: "page.kpis.title",
+        subtitleKey: "page.kpis.subtitle",
+    },
+    "/app/appointments": {
+        titleKey: "page.appointments.title",
+        subtitleKey: "page.appointments.subtitle",
+    },
+    "/app/my-appointments": {
+        titleKey: "page.appointments.title",
+        subtitleKey: "page.appointments.subtitle",
+    },
+    "/app/doctors/appointments": {
+        titleKey: "page.appointments.title",
+        subtitleKey: "page.appointments.subtitle",
+    },
     "/app/doctors/prescriptions": {
         titleKey: "page.prescriptions.title",
         subtitleKey: "page.prescriptions.subtitle",
@@ -243,6 +298,14 @@ export default function AppShell() {
         const userFunction = String(user?.functionName || user?.function || "")
           .trim()
           .toUpperCase();
+        if (item.excludeFunctions) {
+          const excludedFunctions = item.excludeFunctions.map((value) =>
+            String(value).trim().toUpperCase(),
+          );
+          if (excludedFunctions.includes(userFunction)) {
+            return false;
+          }
+        }
         const checks = [];
         if (item.permissions) {
           checks.push(item.permissions.some((permission) => hasPermission(user, permission)));

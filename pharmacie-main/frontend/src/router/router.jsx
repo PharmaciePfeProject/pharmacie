@@ -25,11 +25,18 @@ import InternalDeliveriesList from "../pages/supply-flow/InternalDeliveriesList"
 import InternalDeliveryDetails from "../pages/supply-flow/InternalDeliveryDetails";
 import BiDashboard from "../pages/bi/BiDashboard";
 import ReportsList from "../pages/bi/ReportsList";
+import KPIDashboard from "../pages/bi/KPIDashboard";
+import StockDashboard from "../pages/bi/StockDashboard";
+import PrescriptionsDashboard from "../pages/bi/PrescriptionsDashboard";
+import DistributionDashboard from "../pages/bi/DistributionDashboard";
+import ReportingDashboard from "../pages/bi/ReportingDashboard";
 import UsersManagement from "../pages/admin/UsersManagement";
 import UserRegistration from "../pages/admin/UserRegistration";
 import AdminMedicines from "../pages/admin/AdminMedicines";
+import AdminAgents from "../pages/admin/AdminAgents";
 import SecurityPage from "../pages/admin/SecurityPage";
 import PrescriptionsPage from "../pages/prescriptions/PrescriptionsPage";
+import DoctorAppointments from "../pages/doctors/DoctorAppointments";
 import ProfilePage from "../pages/ProfilePage";
 
 function PlaceholderPage({ title }) {
@@ -55,6 +62,7 @@ export const router = createBrowserRouter([
         children: [
           { index: true, element: <Navigate to="/app/dashboard" replace /> },
           { path: "dashboard", element: <Home /> },
+          { path: "home", element: <Home /> },
           { path: "profile", element: <ProfilePage /> },
           {
             element: <PermissionRoute permissions={[PERMISSIONS.PRODUCTS_READ]} />,
@@ -98,10 +106,15 @@ export const router = createBrowserRouter([
             ],
           },
           {
-            element: <PermissionRoute permissions={[PERMISSIONS.ANALYTICS_READ]} />,
+            element: <PermissionRoute roles={[ROLES.ADMIN, ROLES.RESPONSABLE_REPORTING]} />,
             children: [
               { path: "bi", element: <BiDashboard /> },
               { path: "bi/reports", element: <ReportsList /> },
+              { path: "bi/kpis", element: <KPIDashboard /> },
+              { path: "bi/stock", element: <StockDashboard /> },
+              { path: "bi/prescriptions", element: <PrescriptionsDashboard /> },
+              { path: "bi/distributions", element: <DistributionDashboard /> },
+              { path: "bi/reporting", element: <ReportingDashboard /> },
             ],
           },
           {
@@ -114,6 +127,17 @@ export const router = createBrowserRouter([
               />
             ),
             children: [{ path: "doctors/prescriptions", element: <PrescriptionsPage /> }],
+          },
+          {
+            element: <PermissionRoute permissions={[PERMISSIONS.APPOINTMENTS_MANAGE]} roles={[ROLES.SECRETAIRE_GENERAL, ROLES.ADMIN]} functions={["SECRETAIRE_GENERAL"]} match="any" />,
+            children: [
+              { path: "appointments", element: <DoctorAppointments /> },
+              { path: "doctors/appointments", element: <DoctorAppointments /> },
+            ],
+          },
+          {
+            element: <PermissionRoute permissions={[PERMISSIONS.APPOINTMENTS_READ]} roles={[ROLES.MEDECIN]} match="any" />,
+            children: [{ path: "my-appointments", element: <DoctorAppointments /> }],
           },
           { path: "ordonnances", element: <Navigate to="/app/doctors/prescriptions" replace /> },
           { path: "orders", element: <PlaceholderPage title="Orders" /> },
@@ -133,6 +157,16 @@ export const router = createBrowserRouter([
               {
                 element: <PermissionRoute permissions={[PERMISSIONS.PRODUCTS_MANAGE]} />,
                 children: [{ path: "admin/medicines", element: <AdminMedicines /> }],
+              },
+              {
+                element: (
+                  <PermissionRoute
+                    permissions={[PERMISSIONS.PRESCRIPTIONS_MANAGE, PERMISSIONS.ADMIN_ACCESS]}
+                    roles={[ROLES.ADMIN]}
+                    match="any"
+                  />
+                ),
+                children: [{ path: "admin/agents", element: <AdminAgents /> }],
               },
               {
                 element: <PermissionRoute permissions={[PERMISSIONS.USERS_MANAGE, PERMISSIONS.ADMIN_ACCESS]} />,

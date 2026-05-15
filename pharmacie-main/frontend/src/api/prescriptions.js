@@ -13,6 +13,14 @@ export async function createPrescription(payload) {
     const res = await api.post("/api/prescriptions", payload);
     return res.data.item;
 }
+export async function updatePrescription(id, payload) {
+    const res = await api.put(`/api/prescriptions/${id}`, payload);
+    return res.data.item;
+}
+export async function deletePrescription(id) {
+    const res = await api.delete(`/api/prescriptions/${id}`);
+    return res.data;
+}
 export async function fetchPrescriptionDoctors() {
     const res = await api.get("/api/prescriptions/doctors");
     return res.data.items;

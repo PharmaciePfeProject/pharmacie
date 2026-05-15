@@ -20,6 +20,7 @@ export const createManagedUserSchema = z.object({
   role: z.enum([
     ROLE_KEYS.MEDECIN,
     ROLE_KEYS.PHARMACIEN,
+    ROLE_KEYS.SECRETAIRE_GENERAL,
     ROLE_KEYS.RESPONSABLE_REPORTING,
   ]),
   functionName: z.string().trim().min(1).max(255).optional(),

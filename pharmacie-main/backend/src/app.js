@@ -7,9 +7,12 @@ import rateLimit from "express-rate-limit";
 
 import { swaggerSpec } from "./config/swagger.js";
 import authRoutes from "./modules/auth/auth.routes.js";
+import agentsRoutes from "./modules/agents/agents.routes.js";
+import appointmentsRoutes from "./modules/appointments/appointments.routes.js";
 import distributionRoutes from "./modules/distribution/distribution.routes.js";
 import doctorsRoutes from "./modules/doctors/doctors.routes.js";
 import inventoryRoutes from "./modules/inventory/inventory.routes.js";
+import kpisRoutes from "./modules/kpis/kpis.routes.js";
 import productsRoutes from "./modules/products/products.routes.js";
 import prescriptionsRoutes from "./modules/prescriptions/prescriptions.routes.js";
 import referencesRoutes from "./modules/references/references.routes.js";
@@ -51,9 +54,12 @@ export function createApp() {
 
   // Routes
   app.use("/api/auth", authRoutes);
+  app.use("/api", agentsRoutes);
+  app.use("/api", appointmentsRoutes);
   app.use("/api", distributionRoutes);
   app.use("/api", doctorsRoutes);
   app.use("/api", inventoryRoutes);
+  app.use("/api/kpis", kpisRoutes);
   app.use("/api", supplyFlowRoutes);
   app.use("/api", prescriptionsRoutes);
   app.use("/api/products", productsRoutes);

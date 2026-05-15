@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Package2, Search, SlidersHorizontal, Tags } from "lucide-react";
+import { Document, Packer, Paragraph, Table, TableCell, TableRow, TextRun, WidthType } from "docx";
 import { fetchProducts } from "@/api/products";
 import { useAuth } from "@/auth/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -11,12 +12,25 @@ import { Pagination } from "@/components/ui/Pagination";
 import { useLanguage } from "@/i18n/LanguageContext";
 import { createDefaultPagination, parsePageParam, parsePageSizeParam } from "@/lib/pagination";
 import { PERMISSIONS, hasPermission } from "@/lib/roles";
+import { ExportFormatModal } from "@/pages/prescriptions/components/ExportFormatModal";
 function formatDecimal(value, fallback) {
     return typeof value === "number" ? value.toFixed(3) : fallback;
 }
+function normalizeCsvValue(value) {
+    const text = String(value ?? "").replace(/"/g, '""');
+    return `"${text}"`;
+}
+function escapeHtml(value) {
+    return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+}
 export default function ProductsList() {
     const { user } = useAuth();
-    const { t } = useLanguage();
+    const { t, language } = useLanguage();
     const [searchParams, setSearchParams] = useSearchParams();
     const [search, setSearch] = useState(searchParams.get("search") || "");
     const [typeFilter, setTypeFilter] = useState(searchParams.get("type_id") || "ALL");
@@ -24,6 +38,7 @@ export default function ProductsList() {
     const [pagination, setPagination] = useState(createDefaultPagination());
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const [exportModalOpen, setExportModalOpen] = useState(false);
     const currentPage = parsePageParam(searchParams.get("page"));
     const currentPageSize = parsePageSizeParam(searchParams.get("pageSize"));
     const canManageProducts = hasPermission(user, PERMISSIONS.PRODUCTS_MANAGE);
@@ -98,6 +113,129 @@ export default function ProductsList() {
         next.set("pageSize", String(pageSize));
         setSearchParams(next);
     };
+    const exportTitle = t("page.products.title");
+    const exportBody = language === "fr"
+        ? "Choisissez le format d export des produits filtres."
+        : "Choose the export format for the filtered products.";
+    const buildExportRows = () => {
+        const headers = [
+            t("common.productId"),
+            t("products.label"),
+            t("common.barcode"),
+            t("products.dci"),
+            t("products.price"),
+            t("products.vat"),
+            t("products.classType"),
+        ];
+        const rows = products.map((product) => [
+            product.product_id,
+            product.lib || t("common.notAvailable"),
+            product.bar_code || t("common.notAvailable"),
+            product.dci || t("common.notAvailable"),
+            formatDecimal(product.price, t("common.notAvailable")),
+            typeof product.vat_rate === "number" ? `${product.vat_rate}%` : t("common.notAvailable"),
+            `${product.pharma_class_id ?? t("common.notAvailable")} / ${product.type_id ?? t("common.notAvailable")}`,
+        ]);
+        return [headers, ...rows];
+    };
+    const exportExcel = () => {
+        const rows = buildExportRows();
+        const csvContent = rows.map((row) => row.map(normalizeCsvValue).join(",")).join("\n");
+        const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `products-${new Date().toISOString().slice(0, 10)}.csv`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.URL.revokeObjectURL(url);
+    };
+    const exportWord = async () => {
+        const rows = buildExportRows();
+        const tableRows = rows.map((row, rowIndex) => new TableRow({
+            children: row.map((cell) => new TableCell({
+                children: [
+                    new Paragraph({
+                        children: [
+                            new TextRun({
+                                text: String(cell ?? ""),
+                                bold: rowIndex === 0,
+                            }),
+                        ],
+                    }),
+                ],
+            })),
+        }));
+        const doc = new Document({
+            sections: [
+                {
+                    children: [
+                        new Paragraph({
+                            children: [
+                                new TextRun({
+                                    text: exportTitle,
+                                    bold: true,
+                                }),
+                            ],
+                        }),
+                        new Paragraph({ text: "" }),
+                        new Table({
+                            rows: tableRows,
+                            width: { size: 100, type: WidthType.PERCENTAGE },
+                        }),
+                    ],
+                },
+            ],
+        });
+        const blob = await Packer.toBlob(doc);
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `products-${new Date().toISOString().slice(0, 10)}.docx`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.URL.revokeObjectURL(url);
+    };
+    const exportPdf = () => {
+        const rows = buildExportRows();
+        const header = rows[0];
+        const body = rows.slice(1);
+        const html = `
+      <html>
+      <head>
+        <meta charset="utf-8" />
+        <title>${escapeHtml(exportTitle)} PDF</title>
+        <style>
+          body { font-family: Arial, sans-serif; padding: 16px; }
+          table { border-collapse: collapse; width: 100%; font-size: 11px; }
+          th, td { border: 1px solid #cbd5e1; padding: 6px; text-align: left; }
+          th { background: #f1f5f9; }
+        </style>
+      </head>
+      <body>
+        <h2>${escapeHtml(exportTitle)}</h2>
+        <table>
+          <thead><tr>${header.map((h) => `<th>${escapeHtml(h)}</th>`).join("")}</tr></thead>
+          <tbody>${body.map((row) => `<tr>${row.map((cell) => `<td>${escapeHtml(cell)}</td>`).join("")}</tr>`).join("")}</tbody>
+        </table>
+        <script>window.onload = () => window.print();</script>
+      </body>
+      </html>`;
+        const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+        const url = window.URL.createObjectURL(blob);
+        window.open(url, "_blank", "width=1200,height=900");
+    };
+    const onExportFormatSelect = async (format) => {
+        if (format === "excel")
+            exportExcel();
+        if (format === "word")
+            await exportWord();
+        if (format === "pdf")
+            exportPdf();
+        setExportModalOpen(false);
+    };
     return (<div className="space-y-6">
       <Card className="overflow-hidden border-white/70 bg-white/95 shadow-sm">
         <CardContent className="space-y-5 p-5">
@@ -150,7 +288,7 @@ export default function ProductsList() {
           </div>
 
           <div className="flex flex-wrap justify-end gap-3">
-            <Button variant="outline" className="rounded-xl">
+            <Button variant="outline" className="rounded-xl" onClick={() => setExportModalOpen(true)}>
               {t("common.export")}
             </Button>
             {canManageProducts && (<Link to="/app/admin/medicines">
@@ -234,5 +372,13 @@ export default function ProductsList() {
 
           <Pagination currentPage={pagination.page} totalPages={pagination.totalPages} pageSize={pagination.pageSize} onPrevious={() => updatePagination(Math.max(1, pagination.page - 1))} onNext={() => updatePagination(Math.min(pagination.totalPages, pagination.page + 1))} onPageSizeChange={(pageSize) => updatePagination(1, pageSize)}/>
         </>)}
+
+      <ExportFormatModal
+        open={exportModalOpen}
+        title={exportTitle}
+        body={exportBody}
+        onClose={() => setExportModalOpen(false)}
+        onSelect={onExportFormatSelect}
+      />
     </div>);
 }

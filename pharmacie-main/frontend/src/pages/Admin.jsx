@@ -1,4 +1,4 @@
-import { ShieldCheck, UserCog, Users } from "lucide-react";
+import { ShieldCheck, UserCog, Users, Stethoscope } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -20,6 +20,13 @@ export default function Admin() {
                 UserCog,
                 "/app/admin/users",
                 t("admin.home.rolesAction"),
+            ],
+            [
+                "Agents",
+                "Manage medical agents for prescriptions",
+                Stethoscope,
+                "/app/admin/agents",
+                "Manage Agents",
             ],
             [
                 t("admin.home.securityTitle"),

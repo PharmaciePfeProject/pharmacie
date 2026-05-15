@@ -541,6 +541,7 @@ function resolveFunctionName(roleKey, providedFunctionName) {
 
   if (roleKey === ROLE_KEYS.MEDECIN) return "DOCTOR";
   if (roleKey === ROLE_KEYS.PHARMACIEN) return "PHARMACIST";
+  if (roleKey === ROLE_KEYS.SECRETAIRE_GENERAL) return "SECRETAIRE_GENERAL";
   if (roleKey === ROLE_KEYS.RESPONSABLE_REPORTING) return "REPORTING";
   return null;
 }

@@ -19,6 +19,7 @@ const initialForm = {
 const roleOptions = [
     { value: "MEDECIN", label: "Medecin" },
     { value: "PHARMACIEN", label: "Pharmacien" },
+    { value: "SECRETAIRE_GENERAL", label: "Secretaire generale" },
     { value: "RESPONSABLE_REPORTING", label: "Responsable BI" },
 ];
 const pharmacistFunctionOptions = [
@@ -176,8 +177,8 @@ export default function UserRegistration() {
         <CardHeader>
           <CardTitle className="text-2xl">Gerer les utilisateurs</CardTitle>
           <CardDescription>
-            L'administrateur cree les comptes Medecin, Pharmacien et Responsable
-            BI.
+            L'administrateur cree les comptes Medecin, Pharmacien, Secretaire
+            generale et Responsable BI.
           </CardDescription>
         </CardHeader>
         <CardContent>

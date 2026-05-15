@@ -4,6 +4,7 @@ export const ROLES = {
     GESTIONNAIRE_STOCK: "GESTIONNAIRE_STOCK",
     PREPARATEUR: "PREPARATEUR",
     MEDECIN: "MEDECIN",
+    SECRETAIRE_GENERAL: "SECRETAIRE_GENERAL",
     RESPONSABLE_REPORTING: "RESPONSABLE_REPORTING",
 };
 export const PERMISSIONS = {
@@ -12,6 +13,8 @@ export const PERMISSIONS = {
     PRESCRIPTIONS_READ: "prescriptions.read",
     PRESCRIPTIONS_MANAGE: "prescriptions.manage",
     PRESCRIPTIONS_APPROVE: "prescriptions.approve",
+    APPOINTMENTS_READ: "appointments.read",
+    APPOINTMENTS_MANAGE: "appointments.manage",
     STOCK_READ: "stock.read",
     STOCK_MANAGE: "stock.manage",
     STOCKLOTS_READ: "stocklots.read",
